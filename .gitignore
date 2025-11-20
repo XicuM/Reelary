@@ -1,0 +1,97 @@
+###############################################
+# Flutter / Dart Comprehensive .gitignore     #
+###############################################
+
+# --- Miscellaneous ---
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+Thumbs.db
+.atom/
+.history
+.svn/
+migrate_working_dir/
+
+# --- Project build artifacts ---
+.build/
+.buildlog/
+
+# --- IntelliJ / Android Studio ---
+*.iml
+*.ipr
+*.iws
+.idea/
+.gradle/
+.android/
+local.properties
+
+# --- VS Code ---
+.vscode/
+
+# --- Flutter / Dart / Pub related ---
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Generated (native assets & plugin registrant)
+native_assets/
+lib/generated_plugin_registrant.dart
+
+# --- Platform specific ephemeral dirs ---
+ios/Flutter/ephemeral/
+macos/Flutter/ephemeral/
+windows/Flutter/ephemeral/
+linux/Flutter/ephemeral/
+
+# --- CocoaPods ---
+ios/Pods/
+macos/Pods/
+
+# --- iOS/macOS build metadata ---
+DerivedData/
+*.xcworkspace
+*.xcuserstate
+*.xcuserdatad
+*.xcsettings
+
+# --- Android build outputs ---
+/android/app/debug
+/android/app/profile
+/android/app/release
+.cxx/
+**/intermediates/
+**/outputs/
+**/generated/
+
+# --- Fastlane (if used) ---
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# --- Environment & secrets ---
+.env
+.env.*
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+*.keystore
+*.jks
+
+# --- Symbolication related ---
+app.*.symbols
+
+# --- Obfuscation related ---
+app.*.map.json
+
+# --- Additional logs / temp ---
+*.tmp
+
+# End of file
