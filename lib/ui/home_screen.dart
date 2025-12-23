@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../providers/recipe_provider.dart';
@@ -15,60 +16,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _urlController = TextEditingController();
   bool _showFolders = true;
-
-  @override
-  void initState() {
-    super.initState();
-    
-    // Handle shared URLs when app is already running
-    ReceiveSharingIntent.instance.getMediaStream().listen((List<SharedMediaFile> value) {
-      if (value.isNotEmpty && value.first.type == SharedMediaType.text) {
-        final sharedText = value.first.path;
-        setState(() {
-          _urlController.text = sharedText;
-        });
-        _processUrl(sharedText);
-      }
-    }, onError: (err) {
-      debugPrint('Error receiving shared data: $err');
-    });
-
-    // Handle shared URLs when app is launched from share
-    ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
-      if (value.isNotEmpty && value.first.type == SharedMediaType.text) {
-        final sharedText = value.first.path;
-        setState(() {
-          _urlController.text = sharedText;
-        });
-        _processUrl(sharedText);
-        // Reset to avoid processing the same intent again
-        ReceiveSharingIntent.instance.reset();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _urlController.dispose();
-    super.dispose();
-  }
-
-  void _processUrl(String url) {
-    if (url.isNotEmpty) {
-      Provider.of<RecipeProvider>(context, listen: false).addRecipeFromUrl(url);
-      _urlController.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Processing Recipe...'),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-    }
-  }
 
   void _showCreateFolderDialog() {
     final nameController = TextEditingController();
@@ -374,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Insta2Cook'),
+        title: const Text('Reelary'),
         actions: [
           IconButton(
             icon: Icon(_showFolders ? Icons.folder : Icons.folder_outlined),
@@ -406,38 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          // URL Input Card
-          Card(
-            margin: const EdgeInsets.all(16.0),
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _urlController,
-                      decoration: InputDecoration(
-                        hintText: 'Paste Instagram Reel URL',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        prefixIcon: const Icon(Icons.link),
-                        filled: true,
-                      ),
-                      onSubmitted: _processUrl,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add'),
-                    onPressed: () => _processUrl(_urlController.text),
-                  ),
-                ],
-              ),
-            ),
-          ),
+
 
           // Folders Section
           if (_showFolders)
@@ -466,7 +383,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   decoration: BoxDecoration(
                                     color: isSelected
                                         ? colorScheme.primaryContainer
-                                        : colorScheme.surfaceVariant,
+                                        : colorScheme.surfaceContainerHighest,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
                                       color: isSelected
@@ -509,7 +426,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 decoration: BoxDecoration(
                                   color: isSelected
                                       ? colorScheme.primaryContainer
-                                      : colorScheme.surfaceVariant,
+                                      : colorScheme.surfaceContainerHighest,
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
                                     color: isSelected
@@ -598,7 +515,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (context, constraints) {
                     // Calculate number of columns based on available width
                     // Each card should be around 180-200px wide
-                    final crossAxisCount = (constraints.maxWidth / 200).floor().clamp(1, 6);
+                    final crossAxisCount = (constraints.maxWidth / 150).floor().clamp(1, 6);
                     
                     return GridView.builder(
                       padding: const EdgeInsets.all(16),
@@ -637,21 +554,21 @@ class _HomeScreenState extends State<HomeScreen> {
                                       errorBuilder:
                                           (context, error, stackTrace) {
                                         return Container(
-                                          color: colorScheme.surfaceVariant,
+                                          color: colorScheme.surfaceContainerHighest,
                                           child: Icon(
                                             Icons.restaurant,
                                             size: 64,
-                                            color: colorScheme.onSurfaceVariant,
+                                            color: colorScheme.onSurface,
                                           ),
                                         );
                                       },
                                     )
                                   : Container(
-                                      color: colorScheme.surfaceVariant,
+                                      color: colorScheme.surfaceContainerHighest,
                                       child: Icon(
                                         Icons.restaurant,
                                         size: 64,
-                                        color: colorScheme.onSurfaceVariant,
+                                        color: colorScheme.onSurface,
                                       ),
                                     ),
                             ),
@@ -673,7 +590,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   Text(
                                     '${recipe.ingredients.length} ingredients',
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
+                                      color: colorScheme.onSurface,
                                     ),
                                   ),
                                   const SizedBox(height: 8),
@@ -694,7 +611,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       PopupMenuButton(
                                         icon: Icon(Icons.more_vert,
                                             size: 18,
-                                            color: colorScheme.onSurfaceVariant),
+                                            color: colorScheme.onSurface),
                                         padding: EdgeInsets.zero,
                                         itemBuilder: (context) => [
                                           PopupMenuItem(

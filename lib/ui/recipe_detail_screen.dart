@@ -53,7 +53,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       buffer.writeln('${i + 1}. ${_currentRecipe.steps[i]}');
     }
     buffer.writeln();
-    buffer.writeln('Created with insta2cook by Xicu Marí');
+    buffer.writeln('Created with Reelary by Xicu Marí');
     return buffer.toString();
   }
 
@@ -212,7 +212,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                             width: double.infinity,
                             height: 250,
                             decoration: BoxDecoration(
-                              color: colorScheme.surfaceVariant,
+                              color: colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Column(
@@ -274,7 +274,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   if (_currentRecipe.videoUrl.isNotEmpty)
                     Card(
                       elevation: 0,
-                      color: colorScheme.surfaceVariant,
+                      color: colorScheme.surfaceContainerHighest,
                       child: InkWell(
                         onTap: () {
                           Clipboard.setData(
@@ -303,14 +303,14 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                                       'Source',
                                       style:
                                           theme.textTheme.labelSmall?.copyWith(
-                                        color: colorScheme.onSurfaceVariant,
+                                        color: colorScheme.onSurface,
                                       ),
                                     ),
                                     Text(
                                       'Instagram Reel',
                                       style:
                                           theme.textTheme.bodyMedium?.copyWith(
-                                        color: colorScheme.onSurfaceVariant,
+                                        color: colorScheme.onSurface,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -343,7 +343,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   const SizedBox(height: 16),
                   Card(
                     elevation: 0,
-                    color: colorScheme.surfaceVariant,
+                    color: colorScheme.surfaceContainerHighest,
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
@@ -441,8 +441,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       elevation: 0,
                       margin: const EdgeInsets.only(bottom: 12),
                       color: isCompleted
-                          ? colorScheme.primaryContainer.withOpacity(0.5)
-                          : colorScheme.surfaceVariant,
+                          ? colorScheme.primaryContainer.withValues(alpha: 0.5)
+                          : colorScheme.surfaceContainerHighest,
                       child: InkWell(
                         onTap: () => _toggleStep(idx),
                         borderRadius: BorderRadius.circular(12),
@@ -457,7 +457,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                                 decoration: BoxDecoration(
                                   color: isCompleted
                                       ? colorScheme.primary
-                                      : colorScheme.outline.withOpacity(0.3),
+                                      : colorScheme.outline.withValues(alpha: 0.3),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Center(
@@ -472,7 +472,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                                           style: theme.textTheme.bodyMedium
                                               ?.copyWith(
                                             fontWeight: FontWeight.bold,
-                                            color: colorScheme.onSurfaceVariant,
+                                            color: colorScheme.onSurface,
                                           ),
                                         ),
                                 ),
@@ -486,8 +486,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                                         ? TextDecoration.lineThrough
                                         : null,
                                     color: isCompleted
-                                        ? colorScheme.onSurfaceVariant
-                                            .withOpacity(0.6)
+                                        ? colorScheme.onSurface
+                                            .withValues(alpha: 0.6)
                                         : null,
                                   ),
                                 ),

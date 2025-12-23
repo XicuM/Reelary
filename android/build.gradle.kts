@@ -1,3 +1,6 @@
+import org.gradle.api.tasks.compile.JavaCompile
+import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
+
 allprojects {
     repositories {
         google()
@@ -24,17 +27,17 @@ tasks.register<Delete>("clean") {
 }
 
 subprojects {
-    plugins.withId("com.android.library") {
-        extensions.configure<com.android.build.gradle.LibraryExtension> {
-            compileOptions {
-                sourceCompatibility = JavaVersion.VERSION_17
-                targetCompatibility = JavaVersion.VERSION_17
+    if (project.name != "app") {
+        plugins.withId("com.android.library") {
+            extensions.configure<com.android.build.gradle.LibraryExtension> {
+                // Do not configure compileOptions here, as the toolchain will handle it.
             }
         }
-    }
-    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+
+        plugins.withId("org.jetbrains.kotlin.android") {
+            extensions.configure<KotlinAndroidProjectExtension> {
+                jvmToolchain(17)
+            }
         }
     }
 }

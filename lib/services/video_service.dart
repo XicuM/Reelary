@@ -88,6 +88,29 @@ class VideoService {
       return storedPath;
     }
 
+    // Fallback: The stored path might be absolute from a previous installation/OS version
+    // but now invalid. Try to find the filename in the current app directory.
+    try {
+      final fileName = path.basename(storedPath);
+      
+      // Check 1: Documents/reelary_downloads (Android/Standard)
+      final docsDir = await getApplicationDocumentsDirectory();
+      final recoveryPath1 = path.join(docsDir.path, 'reelary_downloads', fileName);
+      if (await File(recoveryPath1).exists()) return recoveryPath1;
+
+      // Check 2: Support/reelary_downloads (Windows)
+      final supportDir = await getApplicationSupportDirectory();
+      final recoveryPath2 = path.join(supportDir.path, 'reelary_downloads', fileName);
+      if (await File(recoveryPath2).exists()) return recoveryPath2;
+
+      // Check 3: Root Videos folder (Legacy)
+      final recoveryPath3 = path.join(docsDir.path, 'videos', fileName);
+      if (await File(recoveryPath3).exists()) return recoveryPath3;
+      
+    } catch (e) {
+      debugPrint('Error recovering video path: $e');
+    }
+
     return null;
   }
 

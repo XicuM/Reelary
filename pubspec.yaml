@@ -1,5 +1,5 @@
-name: insta2cook
-description: An app to extract recipes from Instagram Reels using Gemini.
+name: reelary
+description: "Reelary: Extract recipes and places from Instagram Reels using Gemini."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -27,6 +27,11 @@ dependencies:
   video_thumbnail: ^0.5.3
   shared_preferences: ^2.2.2
   share_plus: ^12.0.1
+  url_launcher: ^6.3.1
+  google_maps_flutter: ^2.5.0
+  geocoding: ^4.0.0
+  file_picker: ^10.3.7
+  dynamic_color: ^1.7.0
 
 dev_dependencies:
   flutter_test:
@@ -43,6 +48,3 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icon/app_icon.png"
-  # Uncomment and configure adaptive icon after adding foreground image:
-  # adaptive_icon_background: "#FFFFFF"
-  # adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:chewie/chewie.dart';
 import 'package:video_player/video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String videoPath;
@@ -26,7 +27,40 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _initializePlayer();
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      _openInDefaultApp();
+    } else {
+      _initializePlayer();
+    }
+  }
+
+  Future<void> _openInDefaultApp() async {
+    try {
+      final file = File(widget.videoPath);
+      if (!await file.exists()) {
+        setState(() {
+          _error = 'Video file not found';
+        });
+        return;
+      }
+
+      final uri = Uri.file(widget.videoPath);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+        // Close the screen after opening the video
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      } else {
+        setState(() {
+          _error = 'Cannot open video in default app';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Error opening video: $e';
+      });
+    }
   }
 
   Future<void> _initializePlayer() async {

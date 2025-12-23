@@ -1,4 +1,4 @@
-package com.example.insta2cook
+package com.example.reelary
 
 import io.flutter.embedding.android.FlutterActivity
 

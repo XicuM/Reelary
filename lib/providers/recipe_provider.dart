@@ -10,7 +10,7 @@ import '../services/video_service.dart';
 class RecipeProvider with ChangeNotifier {
   List<Recipe> _recipes = [];
   List<RecipeFolder> _folders = [];
-  int? _selectedFolderId;
+  int? _selectedFolderId = -1;
   bool _isLoading = false;
   String? _error;
 
@@ -36,7 +36,11 @@ class RecipeProvider with ChangeNotifier {
 
   Future<void> loadFolders() async {
     try {
-      _folders = await DatabaseHelper.instance.readAllFolders();
+      final allFolders = await DatabaseHelper.instance.readAllFolders();
+      _folders = allFolders.where((folder) => 
+        folder.entryType == FolderEntryType.recipe || 
+        folder.entryType == FolderEntryType.both
+      ).toList();
       notifyListeners();
     } catch (e) {
       _error = e.toString();
@@ -67,6 +71,7 @@ class RecipeProvider with ChangeNotifier {
   }
 
   Future<void> addRecipeFromUrl(String url) async {
+    if (_isLoading) return;
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -161,13 +166,14 @@ class RecipeProvider with ChangeNotifier {
   }
 
   // Folder management methods
-  Future<void> createFolder(String name, String emoji) async {
+  Future<void> createFolder(String name, String emoji, {FolderEntryType entryType = FolderEntryType.recipe}) async {
     try {
       final folder = RecipeFolder(
         name: name,
         emoji: emoji,
         dateCreated: DateTime.now(),
         dateModified: DateTime.now(),
+        entryType: entryType,
       );
       await DatabaseHelper.instance.createFolder(folder);
       await loadFolders();
@@ -181,6 +187,7 @@ class RecipeProvider with ChangeNotifier {
     try {
       final folder = _folders.firstWhere((f) => f.id == id);
       final updatedFolder = folder.copyWith(
+          entryType: folder.entryType,
         name: name,
         emoji: emoji,
         dateModified: DateTime.now(),

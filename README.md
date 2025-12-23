@@ -1,14 +1,21 @@
-# Insta2Cook 🍳
+# Reelary
 
-A beautiful Flutter app to extract recipes from Instagram Reels using Gemini API, with Material Design 3 UI and folder-based organization.
+A beautiful Flutter app to extract recipes and places from Instagram Reels using Gemini API, with Material Design 3 UI and folder-based organization.
+
+> [!CAUTION]
+> **DISCLAIMER: DEMONSTRATION PURPOSES ONLY**
+> This application is strictly for educational and demonstration purposes. It is **NOT** intended to be run or distributed as it may infringe on Instagram's Terms of Use. Use at your own risk.
 
 ## ✨ Features
 
-- 📱 **Extract Recipes**: Convert Instagram Reels into structured recipes automatically
-- 📁 **Folder Organization**: Organize recipes with customizable emoji folders
+- 📱 **Extract Recipes & Places**: Convert Instagram Reels into structured recipes or place recommendations
+- 🗺️ **Interactive Maps**: View locations on Google Maps with markers and navigation
+- 🏷️ **Smart Categorization**: Automatic AI tagging for places (Restaurant, Travel Spot, Activities, Nature)
+- 📁 **Folder Organization**: Organize recipes and places with customizable emoji folders
 - 🎨 **Material Design 3**: Modern, beautiful UI with dark mode support
-- ✅ **Interactive Cooking**: Check off steps as you cook
-- 💾 **Local Storage**: All recipes stored locally with SQLite
+- ✅ **Interactive Cooking**: Check off recipe steps as you cook
+- 📍 **Location Management**: Multiple locations per place with GPS coordinates and addresses
+- 💾 **Local Storage**: All data stored locally with SQLite
 - 🌙 **Dark Mode**: Automatic theme switching based on system preferences
 
 ## Setup Instructions
@@ -16,8 +23,6 @@ A beautiful Flutter app to extract recipes from Instagram Reels using Gemini API
 ### Prerequisites
 
 **Required:** RapidAPI Instagram Downloader API - For downloading Instagram videos cross-platform
-
-**Why use an API?** Instagram blocks direct video scraping. Using a third-party API service ensures the app works on all platforms (Android, iOS, Windows, macOS, etc.).
 
 ### App Setup
 
@@ -52,7 +57,26 @@ A beautiful Flutter app to extract recipes from Instagram Reels using Gemini API
     2. Subscribe to [Instagram Premium API 2023](https://rapidapi.com/sainikhilmaremanda-jgDbPvTvR/api/instagram-premium-api-2023) (has free tier)
     3. Copy your API key from the dashboard
     
-    **c) Update .env file**
+    **c) Google Maps API Key**
+    1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+    2. Create a new project or select an existing one
+    3. Enable the Maps SDK for Android and iOS
+    4. Create credentials (API Key)
+    5. Restrict the API key to your app's package name for security
+    
+    **For Android:** Open `android/app/src/main/AndroidManifest.xml` and replace `YOUR_API_KEY_HERE`:
+    ```xml
+    <meta-data
+        android:name="com.google.android.geo.API_KEY"
+        android:value="YOUR_GOOGLE_MAPS_API_KEY" />
+    ```
+    
+    **For iOS:** Open `ios/Runner/AppDelegate.swift` and replace `YOUR_API_KEY_HERE`:
+    ```swift
+    GMSServices.provideAPIKey("YOUR_GOOGLE_MAPS_API_KEY")
+    ```
+    
+    **d) Update .env file**
     Open the `.env` file in the root directory and add your keys:
     ```
     GEMINI_API_KEY=your_gemini_key_here
@@ -66,8 +90,17 @@ A beautiful Flutter app to extract recipes from Instagram Reels using Gemini API
     flutter run
     ```
 
-## Features
--   **Share to App**: Share an Instagram Reel directly to Insta2Cook.
--   **Paste URL**: Manually paste a Reel URL.
--   **Gemini Extraction**: Uses Gemini 1.5 Flash to analyze the video and author's comment to extract ingredients and steps.
--   **Recipe Storage**: Saves recipes locally using SQLite.
+## How to Use
+
+### Recipes
+-   **Share to App**: Share an Instagram Reel directly to Reelary
+-   **Paste URL**: Manually paste a Reel URL
+-   **Gemini Extraction**: Uses Gemini 2.0 Flash to analyze the video and extract ingredients and steps
+-   **Recipe Storage**: Saves recipes locally with interactive cooking mode
+
+### Places
+-   **Extract Places**: AI identifies locations, addresses, and categories from travel/food Reels
+-   **View on Map**: Interactive Google Maps view with markers for each location
+-   **Smart Tags**: Automatically categorized into Restaurant, Travel Spot, Activities, or Nature
+-   **Navigate**: Direct navigation links to Google Maps for each location
+-   **Share**: Share place details with Google Maps links included

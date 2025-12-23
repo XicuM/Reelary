@@ -4,6 +4,8 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'dart:io' show Platform;
 import '../models/recipe.dart';
 import '../models/folder.dart';
+import '../models/place.dart';
+import '../models/tag.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -29,7 +31,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -72,6 +74,41 @@ ALTER TABLE recipes ADD COLUMN reelId TEXT
 ALTER TABLE recipes ADD COLUMN videoPath TEXT
 ''');
     }
+
+    if (oldVersion < 5) {
+      // Add entryType column to folders
+      await db.execute('''
+ALTER TABLE folders ADD COLUMN entryType TEXT DEFAULT 'recipe'
+''');
+
+      // Create tags table
+      await db.execute('''
+CREATE TABLE IF NOT EXISTS tags (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  icon TEXT NOT NULL,
+  color TEXT NOT NULL
+)
+''');
+
+      // Create places table
+      await db.execute('''
+CREATE TABLE IF NOT EXISTS places (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  videoUrl TEXT NOT NULL,
+  screenshotPath TEXT,
+  videoPath TEXT,
+  locations TEXT NOT NULL,
+  description TEXT NOT NULL,
+  dateCreated TEXT NOT NULL,
+  folderId INTEGER,
+  reelId TEXT UNIQUE,
+  tagIds TEXT NOT NULL,
+  FOREIGN KEY (folderId) REFERENCES folders (id) ON DELETE SET NULL
+)
+''');
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -86,7 +123,8 @@ CREATE TABLE folders (
   name $textType,
   emoji $textType,
   dateCreated $textType,
-  dateModified $textType
+  dateModified $textType,
+  entryType $textType DEFAULT 'recipe'
   )
 ''');
 
@@ -103,6 +141,32 @@ CREATE TABLE recipes (
   dateCreated $textType,
   folderId $intNullableType,
   reelId $textNullableType UNIQUE,
+  FOREIGN KEY (folderId) REFERENCES folders (id) ON DELETE SET NULL
+  )
+''');
+
+    await db.execute('''
+CREATE TABLE tags ( 
+  id $idType, 
+  name $textType,
+  icon $textType,
+  color $textType
+  )
+''');
+
+    await db.execute('''
+CREATE TABLE places ( 
+  id $idType, 
+  title $textType,
+  videoUrl $textType,
+  screenshotPath $textNullableType,
+  videoPath $textNullableType,
+  locations $textType,
+  description $textType,
+  dateCreated $textType,
+  folderId $intNullableType,
+  reelId $textNullableType UNIQUE,
+  tagIds $textType,
   FOREIGN KEY (folderId) REFERENCES folders (id) ON DELETE SET NULL
   )
 ''');
@@ -277,5 +341,162 @@ CREATE TABLE recipes (
       whereArgs: folderId == null ? null : [folderId],
     );
     return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  // Place operations
+  Future<Place> createPlace(Place place) async {
+    final db = await instance.database;
+    final id = await db.insert('places', place.toMap());
+    return place.copyWith(id: id);
+  }
+
+  Future<bool> placeExistsByReelId(String reelId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'places',
+      where: 'reelId = ?',
+      whereArgs: [reelId],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<Place?> getPlaceByReelId(String reelId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'places',
+      where: 'reelId = ?',
+      whereArgs: [reelId],
+      limit: 1,
+    );
+    if (result.isNotEmpty) {
+      return Place.fromMap(result.first);
+    }
+    return null;
+  }
+
+  Future<Place?> readPlace(int id) async {
+    final db = await instance.database;
+    final maps = await db.query(
+      'places',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isNotEmpty) {
+      return Place.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<List<Place>> readAllPlaces() async {
+    final db = await instance.database;
+    const orderBy = 'dateCreated DESC';
+    final result = await db.query('places', orderBy: orderBy);
+    return result.map((json) => Place.fromMap(json)).toList();
+  }
+
+  Future<List<Place>> readPlacesByFolder(int? folderId) async {
+    final db = await instance.database;
+    const orderBy = 'dateCreated DESC';
+    final result = await db.query(
+      'places',
+      where: folderId == null ? 'folderId IS NULL' : 'folderId = ?',
+      whereArgs: folderId == null ? null : [folderId],
+      orderBy: orderBy,
+    );
+    return result.map((json) => Place.fromMap(json)).toList();
+  }
+
+  Future<List<Place>> readPlacesByTag(int tagId) async {
+    final db = await instance.database;
+    const orderBy = 'dateCreated DESC';
+    final result = await db.query('places', orderBy: orderBy);
+    final places = result.map((json) => Place.fromMap(json)).toList();
+    return places.where((place) => place.tagIds.contains(tagId)).toList();
+  }
+
+  Future<int> updatePlace(Place place) async {
+    final db = await instance.database;
+    return db.update(
+      'places',
+      place.toMap(),
+      where: 'id = ?',
+      whereArgs: [place.id],
+    );
+  }
+
+  Future<int> deletePlace(int id) async {
+    final db = await instance.database;
+    return await db.delete(
+      'places',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> getPlaceCountInFolder(int? folderId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'places',
+      columns: ['COUNT(*) as count'],
+      where: folderId == null ? 'folderId IS NULL' : 'folderId = ?',
+      whereArgs: folderId == null ? null : [folderId],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  // Tag operations
+  Future<PlaceTag> createTag(PlaceTag tag) async {
+    final db = await instance.database;
+    final id = await db.insert('tags', tag.toMap());
+    return tag.copyWith(id: id);
+  }
+
+  Future<List<PlaceTag>> readAllTags() async {
+    final db = await instance.database;
+    const orderBy = 'name ASC';
+    final result = await db.query('tags', orderBy: orderBy);
+    return result.map((json) => PlaceTag.fromMap(json)).toList();
+  }
+
+  Future<PlaceTag?> readTag(int id) async {
+    final db = await instance.database;
+    final maps = await db.query(
+      'tags',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isNotEmpty) {
+      return PlaceTag.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<int> updateTag(PlaceTag tag) async {
+    final db = await instance.database;
+    return db.update(
+      'tags',
+      tag.toMap(),
+      where: 'id = ?',
+      whereArgs: [tag.id],
+    );
+  }
+
+  Future<int> deleteTag(int id) async {
+    final db = await instance.database;
+    // Remove tag from all places
+    final places = await readAllPlaces();
+    for (var place in places) {
+      if (place.tagIds.contains(id)) {
+        final updatedTagIds = place.tagIds.where((tid) => tid != id).toList();
+        await updatePlace(place.copyWith(tagIds: updatedTagIds));
+      }
+    }
+    // Delete the tag
+    return await db.delete(
+      'tags',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/database_service.dart';
 import '../services/settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -78,6 +79,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _exportDatabase(BuildContext context) async {
+    await DatabaseService.exportDatabase(context);
+  }
+
+  Future<void> _importDatabase(BuildContext context) async {
+    await DatabaseService.importDatabase(context);
   }
 
   @override
@@ -215,7 +224,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     // Instructions Card
                     Card(
-                      color: colorScheme.surfaceVariant,
+                      color: colorScheme.surfaceContainerHighest,
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Column(
@@ -239,6 +248,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             _buildInstruction('2', 'RapidAPI: Visit rapidapi.com and subscribe to Instagram API'),
                             const SizedBox(height: 8),
                             _buildInstruction('3', 'Copy your keys and paste them above'),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // Data Management
+                    Card(
+                      color: colorScheme.surfaceContainer,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.storage, color: colorScheme.primary),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Data Management',
+                                    style: theme.textTheme.titleLarge?.copyWith(
+                                      color: colorScheme.onSurface,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Backup your database to a file or restore it from a backup. This is useful for transferring data between devices.',
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _exportDatabase(context),
+                                    icon: const Icon(Icons.upload_file),
+                                    label: const Text('Export'),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _importDatabase(context),
+                                    icon: const Icon(Icons.download_for_offline),
+                                    label: const Text('Import'),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
