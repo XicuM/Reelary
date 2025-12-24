@@ -11,8 +11,7 @@ void main() async {
   try {
     await dotenv.load(fileName: ".env");
   } catch (e) {
-    debugPrint("Warning: Could not load .env file: $e");
-    debugPrint("Please create a .env file with GEMINI_API_KEY=your_api_key");
+    debugPrint("Info: No .env file found. API keys must be configured in Settings.");
   }
 
   runApp(const MyApp());

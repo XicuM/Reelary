@@ -117,11 +117,15 @@ class RecipeProvider with ChangeNotifier {
         videoUrl: url,
       );
 
-      // 4. Add metadata to recipe before saving
+      // 4. Get thumbnail bytes
+      final thumbnailData = await _videoService.getThumbnailData(thumbnailPath!);
+
+      // 5. Add metadata to recipe before saving
       final recipeWithMetadata = recipe.copyWith(
         reelId: reelId,
         screenshotPath: thumbnailPath,
         videoPath: videoPath,
+        thumbnailData: thumbnailData,
       );
 
       // 5. Save recipe to DB
@@ -235,6 +239,64 @@ class RecipeProvider with ChangeNotifier {
     );
 
     return instagramUrlPattern.hasMatch(url);
+  }
+
+  Future<void> regenerateThumbnail(int recipeId) async {
+    try {
+      final recipe = _recipes.firstWhere((r) => r.id == recipeId);
+      final videoPath = await _videoService.getVideoPath(recipe.videoPath);
+      
+      if (videoPath != null) {
+        final thumbnailPath = await _videoService.generateThumbnail(videoPath);
+        if (thumbnailPath != null) {
+          final thumbnailData = await _videoService.getThumbnailData(thumbnailPath);
+          final updatedRecipe = recipe.copyWith(
+            screenshotPath: thumbnailPath,
+            thumbnailData: thumbnailData,
+          );
+          await updateRecipe(updatedRecipe);
+        }
+      }
+    } catch (e) {
+      _error = 'Failed to regenerate thumbnail: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> redownloadVideo(int recipeId) async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      final recipe = _recipes.firstWhere((r) => r.id == recipeId);
+      
+      // Check network
+      if (!await _instagramService.isNetworkAvailable()) {
+        throw Exception('No internet connection');
+      }
+
+      // Download
+      final videoPath = await _instagramService.downloadInstagramVideo(recipe.videoUrl);
+      
+      // Regenerate thumbnail while we're at it
+      final thumbnailPath = await _videoService.generateThumbnail(videoPath);
+      final thumbnailData = thumbnailPath != null 
+          ? await _videoService.getThumbnailData(thumbnailPath) 
+          : null;
+
+      final updatedRecipe = recipe.copyWith(
+        videoPath: videoPath,
+        screenshotPath: thumbnailPath ?? recipe.screenshotPath,
+        thumbnailData: thumbnailData ?? recipe.thumbnailData,
+      );
+      
+      await updateRecipe(updatedRecipe);
+    } catch (e) {
+      _error = 'Failed to redownload video: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   /// Extracts the reel/post ID from an Instagram URL

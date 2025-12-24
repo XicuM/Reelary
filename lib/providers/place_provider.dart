@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/place.dart';
 import '../models/folder.dart';
@@ -205,7 +206,7 @@ class PlaceProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       if (kDebugMode) {
-        print('Error adding place: $e');
+        debugPrint('Error adding place: $e');
       }
     } finally {
       _isLoading = false;
@@ -352,6 +353,56 @@ class PlaceProvider with ChangeNotifier {
     try {
       await DatabaseHelper.instance.deleteFolder(id);
       await loadFolders();
+      await loadPlaces();
+      _error = null;
+    } catch (e) {
+      _error = e.toString();
+    }
+    notifyListeners();
+  }
+  Future<void> regenerateThumbnail(int id) async {
+    try {
+      final place = _places.firstWhere((p) => p.id == id);
+      if (place.videoPath != null &&
+          place.videoPath!.isNotEmpty &&
+          File(place.videoPath!).existsSync()) {
+        final thumbnailPath =
+            await _videoService.generateThumbnail(place.videoPath!);
+        final updatedPlace = place.copyWith(screenshotPath: thumbnailPath);
+        await DatabaseHelper.instance.updatePlace(updatedPlace);
+        await loadPlaces();
+        _error = null;
+      } else {
+        throw Exception('Video file not found. Cannot regenerate thumbnail.');
+      }
+    } catch (e) {
+      _error = e.toString();
+    }
+    notifyListeners();
+  }
+
+  Future<void> redownloadVideo(int id) async {
+    try {
+      final place = _places.firstWhere((p) => p.id == id);
+      
+      // Check network
+      final hasNetwork = await _instagramService.isNetworkAvailable();
+      if (!hasNetwork) {
+        throw Exception('No internet connection');
+      }
+
+      // Download video
+      final videoPath = await _instagramService.downloadInstagramVideo(place.videoUrl);
+      
+      // Generate thumbnail
+      final thumbnailPath = await _videoService.generateThumbnail(videoPath);
+      
+      final updatedPlace = place.copyWith(
+        videoPath: videoPath,
+        screenshotPath: thumbnailPath,
+      );
+      
+      await DatabaseHelper.instance.updatePlace(updatedPlace);
       await loadPlaces();
       _error = null;
     } catch (e) {

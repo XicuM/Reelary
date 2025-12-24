@@ -17,7 +17,7 @@ class GeocodingService {
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error geocoding address: $e');
+        debugPrint('Error geocoding address: $e');
       }
     }
     return null;

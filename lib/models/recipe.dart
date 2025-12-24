@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 class Recipe {
   final int? id;
@@ -12,6 +13,7 @@ class Recipe {
   final DateTime dateCreated;
   final int? folderId;
   final String? reelId;
+  final Uint8List? thumbnailData;
 
   Recipe({
     this.id,
@@ -25,6 +27,7 @@ class Recipe {
     required this.dateCreated,
     this.folderId,
     this.reelId,
+    this.thumbnailData,
   });
 
   Map<String, dynamic> toMap() {
@@ -40,6 +43,7 @@ class Recipe {
       'dateCreated': dateCreated.toIso8601String(),
       'folderId': folderId,
       'reelId': reelId,
+      'thumbnailData': thumbnailData,
     };
   }
 
@@ -61,6 +65,7 @@ class Recipe {
       dateCreated: DateTime.parse(map['dateCreated']),
       folderId: map['folderId']?.toInt(),
       reelId: map['reelId'],
+      thumbnailData: map['thumbnailData'],
     );
   }
 
@@ -76,6 +81,7 @@ class Recipe {
     DateTime? dateCreated,
     int? folderId,
     String? reelId,
+    Uint8List? thumbnailData,
   }) {
     return Recipe(
       id: id ?? this.id,
@@ -89,6 +95,7 @@ class Recipe {
       dateCreated: dateCreated ?? this.dateCreated,
       folderId: folderId ?? this.folderId,
       reelId: reelId ?? this.reelId,
+      thumbnailData: thumbnailData ?? this.thumbnailData,
     );
   }
 }

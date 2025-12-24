@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,8 +14,7 @@ class GeminiService {
 
   Future<String> _getApiKey() async {
     // Try to get API key from settings first, then fallback to .env
-    String? apiKey = await SettingsService.getGeminiApiKey();
-    apiKey ??= dotenv.env['GEMINI_API_KEY'];
+    String? apiKey = await SettingsService.getEffectiveGeminiKey();
     
     if (apiKey == null || apiKey.isEmpty) {
       throw Exception(
@@ -106,7 +106,7 @@ class GeminiService {
       final waitTime = _rateLimitWindow - timeSinceOldest + const Duration(milliseconds: 200); // + buffer
 
       if (waitTime > Duration.zero) {
-        print('Client-side persistent rate limit (2 RPM) reached. Waiting ${waitTime.inSeconds}s...');
+        debugPrint('Client-side persistent rate limit (2 RPM) reached. Waiting ${waitTime.inSeconds}s...');
         await Future.delayed(waitTime);
         // After waiting, loop repeats to re-check storage (in case another process updated it, theoretically)
       } else {
@@ -130,7 +130,7 @@ class GeminiService {
         if (e.toString().contains('429') || e.toString().contains('quota')) {
           // Exponential backoff: 2s, 4s, 8s
           final delay = Duration(seconds: 2 * attempts);
-          print('Quota exceeded. Retrying in ${delay.inSeconds} seconds... (Attempt $attempts/$maxRetries)');
+          debugPrint('Quota exceeded. Retrying in ${delay.inSeconds} seconds... (Attempt $attempts/$maxRetries)');
           await Future.delayed(delay);
         } else {
           rethrow;

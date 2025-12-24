@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
@@ -124,5 +125,17 @@ class VideoService {
     }
 
     return '${videoDir.path}/$reelId.mp4';
+  }
+  /// Reads thumbnail file as bytes
+  Future<Uint8List?> getThumbnailData(String thumbnailPath) async {
+    try {
+      final file = File(thumbnailPath);
+      if (await file.exists()) {
+        return await file.readAsBytes();
+      }
+    } catch (e) {
+      debugPrint('Error reading thumbnail bytes: $e');
+    }
+    return null;
   }
 }

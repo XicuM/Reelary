@@ -31,7 +31,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -109,6 +109,16 @@ CREATE TABLE IF NOT EXISTS places (
 )
 ''');
     }
+
+    if (oldVersion < 6) {
+      // Add thumbnailData column to recipes and places
+      await db.execute('''
+ALTER TABLE recipes ADD COLUMN thumbnailData BLOB
+''');
+      await db.execute('''
+ALTER TABLE places ADD COLUMN thumbnailData BLOB
+''');
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -141,6 +151,9 @@ CREATE TABLE recipes (
   dateCreated $textType,
   folderId $intNullableType,
   reelId $textNullableType UNIQUE,
+  folderId $intNullableType,
+  reelId $textNullableType UNIQUE,
+  thumbnailData BLOB,
   FOREIGN KEY (folderId) REFERENCES folders (id) ON DELETE SET NULL
   )
 ''');
@@ -167,6 +180,9 @@ CREATE TABLE places (
   folderId $intNullableType,
   reelId $textNullableType UNIQUE,
   tagIds $textType,
+  reelId $textNullableType UNIQUE,
+  tagIds $textType,
+  thumbnailData BLOB,
   FOREIGN KEY (folderId) REFERENCES folders (id) ON DELETE SET NULL
   )
 ''');

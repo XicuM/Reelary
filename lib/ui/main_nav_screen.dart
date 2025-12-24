@@ -10,6 +10,8 @@ import '../providers/place_provider.dart';
 import '../providers/recipe_provider.dart';
 import 'home_screen.dart';
 import 'places_home_screen.dart';
+import 'settings_screen.dart';
+import '../services/settings_service.dart';
 
 class MainNavScreen extends StatefulWidget {
   const MainNavScreen({super.key});
@@ -30,6 +32,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkApiKeys());
     
     // Only use receive_sharing_intent on mobile platforms where it's implemented
     if (Platform.isAndroid || Platform.isIOS) {
@@ -66,6 +69,50 @@ class _MainNavScreenState extends State<MainNavScreen> {
       });
     } else {
       debugPrint('receive_sharing_intent disabled on this platform');
+    }
+  }
+
+  Future<void> _checkApiKeys() async {
+    // Check if we have either Gemini or RapidAPI key configured
+    // We check individual keys to be more specific, but for now a general check is fine
+    // per the SettingsService.hasApiKeys implementation.
+    final hasKeys = await SettingsService.hasApiKeys();
+    if (!mounted) return;
+
+    // Clear any existing banners to avoid duplicates
+    ScaffoldMessenger.of(context).clearMaterialBanners();
+
+    if (!hasKeys) {
+      ScaffoldMessenger.of(context).showMaterialBanner(
+        MaterialBanner(
+          content: const Text(
+            'API keys are missing. features will not work.',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          leading: const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+          actions: [
+            TextButton(
+              onPressed: () async {
+                ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                );
+                // Re-check keys when returning from settings
+                _checkApiKeys();
+              },
+              child: const Text('CONFIGURE'),
+            ),
+            TextButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+              },
+              child: const Text('DISMISS'),
+            ),
+          ],
+        ),
+      );
     }
   }
 

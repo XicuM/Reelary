@@ -1,3 +1,4 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsService {
@@ -10,6 +11,19 @@ class SettingsService {
     return prefs.getString(_geminiApiKeyKey);
   }
 
+  // Get Effective Gemini API Key (Settings > .env)
+  static Future<String?> getEffectiveGeminiKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = prefs.getString(_geminiApiKeyKey);
+    if (key != null && key.isNotEmpty) return key;
+    return dotenv.env['GEMINI_API_KEY'];
+  }
+
+  static Future<bool> hasGeminiKey() async {
+    final key = await getEffectiveGeminiKey();
+    return key != null && key.isNotEmpty;
+  }
+
   // Set Gemini API Key
   static Future<bool> setGeminiApiKey(String key) async {
     final prefs = await SharedPreferences.getInstance();
@@ -20,6 +34,19 @@ class SettingsService {
   static Future<String?> getRapidApiKey() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_rapidApiKeyKey);
+  }
+
+  // Get Effective RapidAPI Key (Settings > .env)
+  static Future<String?> getEffectiveRapidApiKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = prefs.getString(_rapidApiKeyKey);
+    if (key != null && key.isNotEmpty) return key;
+    return dotenv.env['RAPIDAPI_KEY'];
+  }
+
+  static Future<bool> hasRapidApiKey() async {
+    final key = await getEffectiveRapidApiKey();
+    return key != null && key.isNotEmpty;
   }
 
   // Set RapidAPI Key
@@ -38,9 +65,6 @@ class SettingsService {
 
   // Check if API keys are configured
   static Future<bool> hasApiKeys() async {
-    final geminiKey = await getGeminiApiKey();
-    final rapidKey = await getRapidApiKey();
-    return (geminiKey != null && geminiKey.isNotEmpty) ||
-           (rapidKey != null && rapidKey.isNotEmpty);
+    return (await hasGeminiKey()) || (await hasRapidApiKey());
   }
 }

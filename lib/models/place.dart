@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'location.dart';
 
 class Place {
@@ -13,6 +14,7 @@ class Place {
   final int? folderId;
   final String? reelId;
   final List<int> tagIds; // References to PlaceTag ids
+  final Uint8List? thumbnailData;
 
   Place({
     this.id,
@@ -26,6 +28,7 @@ class Place {
     this.folderId,
     this.reelId,
     this.tagIds = const [],
+    this.thumbnailData,
   });
 
   Map<String, dynamic> toMap() {
@@ -41,6 +44,7 @@ class Place {
       'folderId': folderId,
       'reelId': reelId,
       'tagIds': jsonEncode(tagIds),
+      'thumbnailData': thumbnailData,
     };
   }
 
@@ -67,6 +71,7 @@ class Place {
       folderId: map['folderId'] as int?,
       reelId: map['reelId'] as String?,
       tagIds: tagIds,
+      thumbnailData: map['thumbnailData'],
     );
   }
 
@@ -82,6 +87,7 @@ class Place {
     int? folderId,
     String? reelId,
     List<int>? tagIds,
+    Uint8List? thumbnailData,
   }) {
     return Place(
       id: id ?? this.id,
@@ -95,6 +101,7 @@ class Place {
       folderId: folderId ?? this.folderId,
       reelId: reelId ?? this.reelId,
       tagIds: tagIds ?? this.tagIds,
+      thumbnailData: thumbnailData ?? this.thumbnailData,
     );
   }
 }

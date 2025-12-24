@@ -696,49 +696,49 @@ class _PlacesHomeScreenState extends State<PlacesHomeScreen> {
                                           color: colorScheme.onSurface,
                                         ),
                                       ),
-                                      if (placeTags.isNotEmpty) ...[
-                                        const SizedBox(height: 8),
-                                        Wrap(
-                                          spacing: 4,
-                                          runSpacing: 4,
-                                          children: placeTags.take(3).map((tag) {
-                                            final tagColor = _parseColor(tag.color);
-                                            return Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 6,
-                                                vertical: 2,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: tagColor.withValues(alpha: 0.2),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Text(
-                                                    tag.icon,
-                                                    style: const TextStyle(fontSize: 10),
-                                                  ),
-                                                  const SizedBox(width: 2),
-                                                  Text(
-                                                    tag.name,
-                                                    style: theme.textTheme.bodySmall?.copyWith(
-                                                      fontSize: 10,
-                                                      color: tagColor,
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          }).toList(),
-                                        ),
-                                      ],
-                                      const SizedBox(height: 8),
+
                                       Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.end,
+                                        crossAxisAlignment: CrossAxisAlignment.center,
                                         children: [
+                                          Expanded(
+                                            child: placeTags.isNotEmpty
+                                                ? Wrap(
+                                                    spacing: 4,
+                                                    runSpacing: 4,
+                                                    children: placeTags.take(3).map((tag) {
+                                                      final tagColor = _parseColor(tag.color);
+                                                      return Container(
+                                                        padding: const EdgeInsets.symmetric(
+                                                          horizontal: 6,
+                                                          vertical: 2,
+                                                        ),
+                                                        decoration: BoxDecoration(
+                                                          color: tagColor.withValues(alpha: 0.2),
+                                                          borderRadius: BorderRadius.circular(8),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            Text(
+                                                              tag.icon,
+                                                              style: const TextStyle(fontSize: 10),
+                                                            ),
+                                                            const SizedBox(width: 2),
+                                                            Text(
+                                                              tag.name,
+                                                              style: theme.textTheme.bodySmall?.copyWith(
+                                                                fontSize: 10,
+                                                                color: tagColor,
+                                                                fontWeight: FontWeight.w500,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      );
+                                                    }).toList(),
+                                                  )
+                                                : const SizedBox.shrink(),
+                                          ),
                                           PopupMenuButton(
                                             icon: Icon(Icons.more_vert,
                                                 size: 18,

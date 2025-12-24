@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/recipe.dart';
 import '../data/database_helper.dart';
 import 'video_player_screen.dart';
 import 'recipe_editor_screen.dart';
+import '../providers/recipe_provider.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
@@ -198,8 +200,19 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Recipe Thumbnail
-                  if (_currentRecipe.screenshotPath != null &&
-                      _currentRecipe.screenshotPath!.isNotEmpty)
+                  if (_currentRecipe.thumbnailData != null)
+                     ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.memory(
+                        _currentRecipe.thumbnailData!,
+                        width: double.infinity,
+                        height: 250,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  else if (_currentRecipe.screenshotPath != null &&
+                      _currentRecipe.screenshotPath!.isNotEmpty &&
+                      File(_currentRecipe.screenshotPath!).existsSync())
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
                       child: Image.file(
@@ -207,43 +220,50 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         width: double.infinity,
                         height: 250,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            width: double.infinity,
-                            height: 250,
-                            decoration: BoxDecoration(
-                              color: colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(16),
+                      ),
+                    )
+                  else
+                    Container(
+                      width: double.infinity,
+                      height: 250,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.broken_image,
+                            size: 64,
+                            color: colorScheme.outline,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Thumbnail missing',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.outline,
                             ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.image_not_supported,
-                                  size: 64,
-                                  color: colorScheme.outline,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Thumbnail not available',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: colorScheme.outline,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                          ),
+                          TextButton.icon(
+                            onPressed: () async {
+                              await Provider.of<RecipeProvider>(context, listen: false)
+                                  .regenerateThumbnail(_currentRecipe.id!);
+                              await _refreshRecipe();
+                            },
+                             icon: const Icon(Icons.refresh),
+                             label: const Text('Regenerate'),
+                          ),
+                        ],
                       ),
                     ),
 
-                  if (_currentRecipe.screenshotPath != null &&
-                      _currentRecipe.screenshotPath!.isNotEmpty)
-                    const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // Video Player Button
                   if (_currentRecipe.videoPath != null &&
-                      _currentRecipe.videoPath!.isNotEmpty)
+                      _currentRecipe.videoPath!.isNotEmpty &&
+                      File(_currentRecipe.videoPath!).existsSync())
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
@@ -262,6 +282,24 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         label: const Text('Watch Original Video'),
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                    )
+                  else 
+                     SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () async {
+                          await Provider.of<RecipeProvider>(context, listen: false)
+                              .redownloadVideo(_currentRecipe.id!);
+                          await _refreshRecipe();
+                        },
+                        icon: const Icon(Icons.download),
+                        label: const Text('Redownload Video'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: colorScheme.errorContainer,
+                          foregroundColor: colorScheme.onErrorContainer,
                         ),
                       ),
                     ),

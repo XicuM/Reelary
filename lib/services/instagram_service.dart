@@ -9,8 +9,7 @@ import 'settings_service.dart';
 class InstagramService {
   
   Future<String> _getRapidApiKey() async {
-    String? key = await SettingsService.getRapidApiKey();
-    return key ?? dotenv.env['RAPIDAPI_KEY'] ?? '';
+    return await SettingsService.getEffectiveRapidApiKey() ?? '';
   }
   
   String get _rapidApiHost =>

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,6 +12,7 @@ import 'video_player_screen.dart';
 import 'place_editor_screen.dart';
 import 'place_map_screen.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../providers/place_provider.dart';
 
 class PlaceDetailScreen extends StatefulWidget {
   final Place place;
@@ -274,7 +276,14 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Thumbnail Image
-                if (_currentPlace.screenshotPath != null &&
+                if (_currentPlace.thumbnailData != null)
+                  Image.memory(
+                    _currentPlace.thumbnailData!,
+                    width: double.infinity,
+                    height: 250,
+                    fit: BoxFit.cover,
+                  )
+                else if (_currentPlace.screenshotPath != null &&
                     _currentPlace.screenshotPath!.isNotEmpty &&
                     File(_currentPlace.screenshotPath!).existsSync())
                   Image.file(
@@ -282,7 +291,30 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                     width: double.infinity,
                     height: 250,
                     fit: BoxFit.cover,
-                  ),
+                  )
+                 else
+                    Container(
+                      width: double.infinity,
+                      height: 250,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.broken_image, size: 64),
+                          TextButton.icon(
+                            onPressed: () async {
+                              await Provider.of<PlaceProvider>(context, listen: false)
+                                  .regenerateThumbnail(_currentPlace.id!);
+                              await _refreshPlace();
+                            },
+                             icon: const Icon(Icons.refresh),
+                             label: const Text('Regenerate Thumbnail'),
+                          ),
+                        ],
+                      ),
+                    ),
 
                 Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -334,6 +366,21 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                           label: const Text('Watch Original Video'),
                           style: FilledButton.styleFrom(
                             minimumSize: const Size(double.infinity, 48),
+                          ),
+                        )
+                       else
+                        FilledButton.icon(
+                          onPressed: () async {
+                             await Provider.of<PlaceProvider>(context, listen: false)
+                                  .redownloadVideo(_currentPlace.id!);
+                             await _refreshPlace();
+                          },
+                          icon: const Icon(Icons.download),
+                          label: const Text('Redownload Video'),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 48),
+                            backgroundColor: colorScheme.errorContainer,
+                            foregroundColor: colorScheme.onErrorContainer,
                           ),
                         ),
 
