@@ -1,6 +1,8 @@
 # Reelary
 
-A beautiful Flutter app to extract recipes and places from Instagram Reels using Gemini API, with Material Design 3 UI and folder-based organization.
+![](assets/cover.png)
+
+Reelary is a Flutter app to extract recipes and places from Instagram Reels using Gemini API, with Material Design 3 UI and folder-based organization.
 
 > [!CAUTION]
 > **DISCLAIMER: DEMONSTRATION PURPOSES ONLY**
