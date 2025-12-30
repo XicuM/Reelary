@@ -7,7 +7,7 @@ enum FolderEntryType {
   
   static FolderEntryType fromJson(String value) {
     return FolderEntryType.values.firstWhere(
-      (e) => e.name == value,
+      (e) => e.name.toLowerCase() == value.toLowerCase().trim(),
       orElse: () => FolderEntryType.recipe,
     );
   }

@@ -25,38 +25,11 @@ class _PlacesHomeScreenState extends State<PlacesHomeScreen> {
     FolderEntryType selectedEntryType = FolderEntryType.place;
 
     final List<String> emojiOptions = [
-      '📁',
-      '🗺️',
-      '📍',
-      '🏖️',
-      '🏔️',
-      '🏙️',
-      '🏝️',
-      '🏞️',
-      '🏟️',
-      '🗼',
-      '🗽',
-      '⛰️',
-      '🌋',
-      '🏕️',
-      '🏖️',
-      '🏛️',
-      '🕌',
-      '⛪',
-      '🕍',
-      '⛩️',
-      '🎡',
-      '🎢',
-      '🎠',
-      '⛲',
-      '⛱️',
-      '🌊',
-      '🌅',
-      '🌄',
-      '❤️',
-      '⭐',
-      '✨',
-      '💙'
+      '📁', '🗺️', '📍', '🏖️', '🏔️', '🏙️', '🏝️', '🏞️', '🏟️', '🗼', '🗽',
+      '⛰️', '🌋', '🏕️', '🏛️', '🕌', '⛪', '🕍', '⛩️', '🎡', '🎢', '🎠',
+      '⛲', '⛱️', '🌊', '🌅', '🌄', '🚄', '🚗', '✈️', '🚲', '🏨', '🏦',
+      '🏯', '🏰', '🌉', '🌃', '🌆', '⛺', '🛖', '🏠', '🏡', '🏢', '🛍️',
+      '❤️', '⭐', '✨', '💙'
     ];
 
     showDialog(
@@ -185,6 +158,32 @@ class _PlacesHomeScreenState extends State<PlacesHomeScreen> {
     );
   }
 
+  void _showDeleteFolderConfirmDialog(RecipeFolder folder) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Folder?'),
+        content: Text(
+            'Are you sure you want to delete "${folder.name}"? Places inside will be moved to "No Folder".'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Provider.of<PlaceProvider>(context, listen: false)
+                  .deleteFolder(folder.id!);
+              Navigator.pop(context); // Close confirm dialog
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showEditFolderDialog(RecipeFolder folder) {
     final nameController = TextEditingController(text: folder.name);
     String selectedEmoji = folder.emoji;
@@ -192,8 +191,10 @@ class _PlacesHomeScreenState extends State<PlacesHomeScreen> {
 
     final List<String> emojiOptions = [
       '📁', '🗺️', '📍', '🏖️', '🏔️', '🏙️', '🏝️', '🏞️', '🏟️', '🗼', '🗽',
-      '⛰️', '🌋', '🏕️', '🏖️', '🏛️', '🕌', '⛪', '🕍', '⛩️', '🎡', '🎢',
-      '🎠', '⛲', '⛱️', '🌊', '🌅', '🌄', '❤️', '⭐', '✨', '💙'
+      '⛰️', '🌋', '🏕️', '🏛️', '🕌', '⛪', '🕍', '⛩️', '🎡', '🎢', '🎠',
+      '⛲', '⛱️', '🌊', '🌅', '🌄', '🚄', '🚗', '✈️', '🚲', '🏨', '🏦',
+      '🏯', '🏰', '🌉', '🌃', '🌆', '⛺', '🛖', '🏠', '🏡', '🏢', '🛍️',
+      '❤️', '⭐', '✨', '💙'
     ];
 
     showDialog(
@@ -294,6 +295,14 @@ class _PlacesHomeScreenState extends State<PlacesHomeScreen> {
             ),
           ),
           actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Close edit dialog
+                _showDeleteFolderConfirmDialog(folder);
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
@@ -410,10 +419,10 @@ class _PlacesHomeScreenState extends State<PlacesHomeScreen> {
                     itemCount: provider.folders.length + 1,
                     itemBuilder: (context, index) {
                       if (index == 0) {
-                        // "All Places" folder
-                        final isSelected = provider.selectedFolderId == -1;
+                        // "No folder" folder
+                        final isSelected = provider.selectedFolderId == null;
                         return GestureDetector(
-                          onTap: () => provider.selectFolder(-1),
+                          onTap: () => provider.selectFolder(null),
                           child: Container(
                             width: 80,
                             margin: const EdgeInsets.only(right: 12),
@@ -435,13 +444,18 @@ class _PlacesHomeScreenState extends State<PlacesHomeScreen> {
                                     ),
                                   ),
                                   child: Center(
-                                    child: Text('🏠',
-                                        style: const TextStyle(fontSize: 32)),
+                                    child: Icon(
+                                      Icons.folder_off_outlined,
+                                      size: 32,
+                                      color: isSelected
+                                          ? colorScheme.primary
+                                          : colorScheme.onSurfaceVariant,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'All',
+                                  'No Folder',
                                   style: theme.textTheme.bodySmall,
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.center,
@@ -540,7 +554,7 @@ class _PlacesHomeScreenState extends State<PlacesHomeScreen> {
                               provider.selectTag(tag.id);
                             } else {
                               provider.selectTag(null);
-                              provider.selectFolder(-1);
+                              provider.selectFolder(null);
                             }
                           },
                           backgroundColor: tagColor.withValues(alpha: 0.1),

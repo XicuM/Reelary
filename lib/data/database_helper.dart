@@ -13,9 +13,18 @@ class DatabaseHelper {
 
   DatabaseHelper._init();
 
+  static String _dbName = 'recipes.db';
+
+  /// Use this method to set a custom database name, primarily for testing.
+  /// This must be called before accessing the [database] property.
+  static void setDbName(String name) {
+    _dbName = name;
+    _database = null;
+  }
+
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('recipes.db');
+    _database = await _initDB(_dbName);
     return _database!;
   }
 
@@ -27,11 +36,11 @@ class DatabaseHelper {
     }
 
     final dbPath = await getDatabasesPath();
-    final path = join(dbPath, filePath);
+    final path = filePath == inMemoryDatabasePath ? filePath : join(dbPath, filePath);
 
     return await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -119,6 +128,16 @@ ALTER TABLE recipes ADD COLUMN thumbnailData BLOB
 ALTER TABLE places ADD COLUMN thumbnailData BLOB
 ''');
     }
+
+    if (oldVersion < 7) {
+      // Add mediaPaths column (JSON list of strings) to recipes and places
+      await db.execute('''
+ALTER TABLE recipes ADD COLUMN mediaPaths TEXT DEFAULT '[]'
+''');
+      await db.execute('''
+ALTER TABLE places ADD COLUMN mediaPaths TEXT DEFAULT '[]'
+''');
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -151,9 +170,8 @@ CREATE TABLE recipes (
   dateCreated $textType,
   folderId $intNullableType,
   reelId $textNullableType UNIQUE,
-  folderId $intNullableType,
-  reelId $textNullableType UNIQUE,
   thumbnailData BLOB,
+  mediaPaths $textNullableType DEFAULT '[]',
   FOREIGN KEY (folderId) REFERENCES folders (id) ON DELETE SET NULL
   )
 ''');
@@ -180,9 +198,8 @@ CREATE TABLE places (
   folderId $intNullableType,
   reelId $textNullableType UNIQUE,
   tagIds $textType,
-  reelId $textNullableType UNIQUE,
-  tagIds $textType,
   thumbnailData BLOB,
+  mediaPaths $textNullableType DEFAULT '[]',
   FOREIGN KEY (folderId) REFERENCES folders (id) ON DELETE SET NULL
   )
 ''');
@@ -321,9 +338,15 @@ CREATE TABLE places (
 
   Future<int> deleteFolder(int id) async {
     final db = await instance.database;
-    // First, set folderId to null for all recipes in this folder
+    // First, set folderId to null for all recipes and places in this folder
     await db.update(
       'recipes',
+      {'folderId': null},
+      where: 'folderId = ?',
+      whereArgs: [id],
+    );
+    await db.update(
+      'places',
       {'folderId': null},
       where: 'folderId = ?',
       whereArgs: [id],

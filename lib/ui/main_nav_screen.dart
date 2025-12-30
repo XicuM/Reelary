@@ -40,10 +40,12 @@ class _MainNavScreenState extends State<MainNavScreen> {
       ReceiveSharingIntent.instance.getMediaStream().listen((List<SharedMediaFile> value) {
         if (value.isNotEmpty && value.first.type == SharedMediaType.text) {
           final sharedText = value.first.path;
+          final url = _extractUrl(sharedText) ?? sharedText;
+          if (!mounted) return;
           setState(() {
-            _urlController.text = sharedText;
+            _urlController.text = url;
           });
-          _showContentTypeDialog(sharedText);
+          _showContentTypeDialog(url);
         }
       }, onError: (err) {
         debugPrint('Error receiving shared data: $err');
@@ -53,10 +55,12 @@ class _MainNavScreenState extends State<MainNavScreen> {
       ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
         if (value.isNotEmpty && value.first.type == SharedMediaType.text) {
           final sharedText = value.first.path;
+          final url = _extractUrl(sharedText) ?? sharedText;
+          if (!mounted) return;
           setState(() {
-            _urlController.text = sharedText;
+            _urlController.text = url;
           });
-          _showContentTypeDialog(sharedText);
+          _showContentTypeDialog(url);
           // Reset to avoid processing the same intent again
           ReceiveSharingIntent.instance.reset();
         }
@@ -70,6 +74,15 @@ class _MainNavScreenState extends State<MainNavScreen> {
     } else {
       debugPrint('receive_sharing_intent disabled on this platform');
     }
+  }
+
+  String? _extractUrl(String text) {
+    final RegExp urlRegExp = RegExp(
+      r'https?://(www\.)?instagram\.com/(p|reel|tv|stories)/[\w-]+/?',
+      caseSensitive: false,
+    );
+    final match = urlRegExp.firstMatch(text);
+    return match?.group(0);
   }
 
   Future<void> _checkApiKeys() async {
@@ -158,7 +171,8 @@ class _MainNavScreenState extends State<MainNavScreen> {
           ),
           FilledButton(
             onPressed: () {
-              final url = _urlController.text.trim();
+              final text = _urlController.text.trim();
+              final url = _extractUrl(text) ?? text;
               if (url.isNotEmpty) {
                 Navigator.pop(context);
                 _showContentTypeDialog(url);
@@ -178,19 +192,29 @@ class _MainNavScreenState extends State<MainNavScreen> {
         title: const Text('What type of content is this?'),
         content: const Text('Please select whether this is a recipe or a place.'),
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _processUrl(url, isPlace: false);
-            },
-            child: const Text('Recipe'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _processUrl(url, isPlace: true);
-            },
-            child: const Text('Place'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: FilledButton.tonal(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _processUrl(url, isPlace: false);
+                  },
+                  child: const Text('Recipe'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.tonal(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _processUrl(url, isPlace: true);
+                  },
+                  child: const Text('Place'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -199,11 +223,16 @@ class _MainNavScreenState extends State<MainNavScreen> {
 
   void _processUrl(String url, {bool isPlace = true}) {
     if (url.isNotEmpty) {
+      // Force switch to the correct tab
+      setState(() {
+        _selectedIndex = isPlace ? 1 : 0;
+      });
+
       if (isPlace) {
         Provider.of<PlaceProvider>(context, listen: false).addPlaceFromUrl(url);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Processing Place...'),
+            content: const Text('Processing Place in background...'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
@@ -212,7 +241,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
         Provider.of<RecipeProvider>(context, listen: false).addRecipeFromUrl(url);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Processing Recipe...'),
+            content: const Text('Processing Recipe in background...'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
@@ -226,11 +255,10 @@ class _MainNavScreenState extends State<MainNavScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _screens[_selectedIndex],
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: _showAddUrlDialog,
-        icon: const Icon(Icons.add),
-        label: const Text('Add from Instagram'),
         tooltip: 'Add recipe or place from Instagram',
+        child: const Icon(Icons.add),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,

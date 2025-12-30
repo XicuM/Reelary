@@ -14,6 +14,7 @@ class Recipe {
   final int? folderId;
   final String? reelId;
   final Uint8List? thumbnailData;
+  final List<String> mediaPaths;
 
   Recipe({
     this.id,
@@ -28,6 +29,7 @@ class Recipe {
     this.folderId,
     this.reelId,
     this.thumbnailData,
+    this.mediaPaths = const [],
   });
 
   Map<String, dynamic> toMap() {
@@ -44,6 +46,7 @@ class Recipe {
       'folderId': folderId,
       'reelId': reelId,
       'thumbnailData': thumbnailData,
+      'mediaPaths': jsonEncode(mediaPaths),
     };
   }
 
@@ -66,6 +69,9 @@ class Recipe {
       folderId: map['folderId']?.toInt(),
       reelId: map['reelId'],
       thumbnailData: map['thumbnailData'],
+      mediaPaths: map['mediaPaths'] != null
+          ? List<String>.from(jsonDecode(map['mediaPaths']))
+          : [],
     );
   }
 
@@ -82,6 +88,7 @@ class Recipe {
     int? folderId,
     String? reelId,
     Uint8List? thumbnailData,
+    List<String>? mediaPaths,
   }) {
     return Recipe(
       id: id ?? this.id,
@@ -96,6 +103,7 @@ class Recipe {
       folderId: folderId ?? this.folderId,
       reelId: reelId ?? this.reelId,
       thumbnailData: thumbnailData ?? this.thumbnailData,
+      mediaPaths: mediaPaths ?? this.mediaPaths,
     );
   }
 }

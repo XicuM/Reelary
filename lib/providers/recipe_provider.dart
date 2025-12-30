@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/recipe.dart';
 import '../models/folder.dart';
@@ -6,11 +7,12 @@ import '../data/database_helper.dart';
 import '../services/gemini_service.dart';
 import '../services/instagram_service.dart';
 import '../services/video_service.dart';
+import '../services/background_processing_service.dart';
 
 class RecipeProvider with ChangeNotifier {
   List<Recipe> _recipes = [];
   List<RecipeFolder> _folders = [];
-  int? _selectedFolderId = -1;
+  int? _selectedFolderId;
   bool _isLoading = false;
   String? _error;
 
@@ -52,16 +54,7 @@ class RecipeProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      if (_selectedFolderId != null || _selectedFolderId == -1) {
-        // Load recipes from specific folder or all recipes
-        _recipes = _selectedFolderId == -1
-            ? await DatabaseHelper.instance.readAllRecipes()
-            : await DatabaseHelper.instance
-                .readRecipesByFolder(_selectedFolderId);
-      } else {
-        // Load recipes without folder (default view)
-        _recipes = await DatabaseHelper.instance.readRecipesByFolder(null);
-      }
+      _recipes = await DatabaseHelper.instance.readRecipesByFolder(_selectedFolderId);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -71,10 +64,14 @@ class RecipeProvider with ChangeNotifier {
   }
 
   Future<void> addRecipeFromUrl(String url) async {
-    if (_isLoading) return;
-    _isLoading = true;
+    // Non-blocking loading state - we don't set _isLoading globally to avoid blocking UI
+    // The BackgroundProcessingService will handle notifications
     _error = null;
     notifyListeners();
+
+    final bgService = BackgroundProcessingService();
+    await bgService.startService();
+    bgService.updateNotification(title: 'Processing Recipe', content: 'Initializing...', showProgress: true, progress: 0);
 
     try {
       // Validate Instagram URL format
@@ -96,48 +93,91 @@ class RecipeProvider with ChangeNotifier {
       }
 
       // Check network connectivity first
+      bgService.updateNotification(title: 'Processing Recipe', content: 'Checking connection...', showProgress: true, progress: 10);
       final hasNetwork = await _instagramService.isNetworkAvailable();
       if (!hasNetwork) {
         throw Exception('No internet connection');
       }
 
-      // 1. Download video using RapidAPI-based service
-      // This method uses a third-party API for cross-platform compatibility
-      final videoPath = await _instagramService.downloadInstagramVideo(url);
+      // 1. Download media (video or images)
+      bgService.updateNotification(title: 'Processing Recipe', content: 'Downloading media...', showProgress: true, progress: 30);
+      final mediaPaths = await _instagramService.downloadInstagramPost(url);
+      
+      if (mediaPaths.isEmpty) {
+        throw Exception('No media found in post');
+      }
 
-      // 2. Generate thumbnail from video
-      final thumbnailPath = await _videoService.generateThumbnail(videoPath);
+      final mainMediaPath = mediaPaths.first;
+      // Determine if main media is video based on extension
+      final isVideo = mainMediaPath.toLowerCase().endsWith('.mp4');
+
+      // 2. Generate thumbnail (from video or use image)
+      bgService.updateNotification(title: 'Processing Recipe', content: 'Generating thumbnail...', showProgress: true, progress: 50);
+      
+      String? thumbnailPath;
+      if (isVideo) {
+         thumbnailPath = await _videoService.generateThumbnail(mainMediaPath);
+      } else {
+        // For images, the image itself can be the thumbnail/screenshot
+        thumbnailPath = mainMediaPath;
+      }
 
       // 3. Generate Recipe using Gemini
-      // Note: We don't extract the author's comment in this version,
-      // so Gemini will analyze just the video content
+      // Note: We might want to pass all images to Gemini if it supports it, 
+      // but for now let's stick to the main one to avoid breaking API limits.
+      bgService.updateNotification(title: 'Processing Recipe', content: 'Analyzing with AI...', showProgress: true, progress: 70);
       Recipe recipe = await _geminiService.generateRecipe(
-        videoPath: videoPath,
-        authorComment: '', // Could be extracted via API metadata in future
+        videoPath: mainMediaPath,
+        authorComment: '', 
         videoUrl: url,
       );
 
       // 4. Get thumbnail bytes
-      final thumbnailData = await _videoService.getThumbnailData(thumbnailPath!);
+      bgService.updateNotification(title: 'Processing Recipe', content: 'Finalizing...', showProgress: true, progress: 90);
+      Uint8List? thumbnailData;
+      if (thumbnailPath != null) {
+        if (isVideo) {
+           thumbnailData = await _videoService.getThumbnailData(thumbnailPath);
+        } else {
+           // For images, we might want to read bytes directly or resizing logic if needed
+           // For now, assuming getThumbnailData handles generic image paths or we read file
+           final file = File(thumbnailPath);
+           if (await file.exists()) {
+             thumbnailData = await file.readAsBytes();
+           }
+        }
+      }
 
       // 5. Add metadata to recipe before saving
       final recipeWithMetadata = recipe.copyWith(
         reelId: reelId,
         screenshotPath: thumbnailPath,
-        videoPath: videoPath,
+        videoPath: isVideo ? mainMediaPath : null, // keep videoPath null if it's an image
         thumbnailData: thumbnailData,
+        mediaPaths: mediaPaths,
       );
 
-      // 5. Save recipe to DB
+      // 6. Save recipe to DB
       await DatabaseHelper.instance.create(recipeWithMetadata);
 
       // Refresh list
       await loadRecipes();
+
+      _error = null;
+      bgService.updateNotification(title: 'Recipe Added', content: 'Successfully processed!', showProgress: false);
+      // Wait a moment for the user to see "Success" then stop
+      await Future.delayed(const Duration(seconds: 3));
+      await bgService.stopService();
+
     } catch (e) {
       _error = e.toString();
+      bgService.updateNotification(title: 'Error Processing Recipe', content: e.toString(), showProgress: false);
       debugPrint('Error in addRecipeFromUrl: $e');
+      // Wait for user to see error?
+      await Future.delayed(const Duration(seconds: 5));
+      await bgService.stopService();
     } finally {
-      _isLoading = false;
+      // _isLoading = false; // Intentionally removed to prevent UI blocking
       notifyListeners();
     }
   }

@@ -5,6 +5,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'providers/recipe_provider.dart';
 import 'providers/place_provider.dart';
 import 'ui/main_nav_screen.dart';
+import 'services/background_processing_service.dart';
+import 'ui/processing_overlay.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +15,8 @@ void main() async {
   } catch (e) {
     debugPrint("Info: No .env file found. API keys must be configured in Settings.");
   }
+
+  await BackgroundProcessingService().initialize();
 
   runApp(const MyApp());
 }
@@ -43,6 +47,14 @@ class MyApp extends StatelessWidget {
         ],
         child: MaterialApp(
           title: 'Reelary',
+          builder: (context, child) {
+            return Stack(
+              children: [
+                if (child != null) child,
+                const ProcessingOverlay(),
+              ],
+            );
+          },
           theme: ThemeData(
             colorScheme: lightColorScheme,
             useMaterial3: true,
@@ -99,4 +111,4 @@ class MyApp extends StatelessWidget {
       );
     });
   }
-}
+} // End of MyApp

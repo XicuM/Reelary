@@ -9,13 +9,14 @@ import '../services/instagram_service.dart';
 import '../services/geocoding_service.dart';
 import '../services/video_service.dart';
 import '../models/location.dart';
+import '../services/background_processing_service.dart';
 
 
 class PlaceProvider with ChangeNotifier {
   List<Place> _places = [];
   List<RecipeFolder> _folders = [];
   List<PlaceTag> _tags = [];
-  int? _selectedFolderId = -1;
+  int? _selectedFolderId;
   int? _selectedTagId;
   bool _isLoading = false;
   String? _error;
@@ -102,14 +103,9 @@ class PlaceProvider with ChangeNotifier {
       if (_selectedTagId != null) {
         // Load places by tag
         _places = await DatabaseHelper.instance.readPlacesByTag(_selectedTagId!);
-      } else if (_selectedFolderId != null || _selectedFolderId == -1) {
-        // Load places from specific folder or all places
-        _places = _selectedFolderId == -1
-            ? await DatabaseHelper.instance.readAllPlaces()
-            : await DatabaseHelper.instance.readPlacesByFolder(_selectedFolderId);
       } else {
-        // Load places without folder (default view)
-        _places = await DatabaseHelper.instance.readPlacesByFolder(null);
+        // Load places from specific folder or no folder (if null)
+        _places = await DatabaseHelper.instance.readPlacesByFolder(_selectedFolderId);
       }
     } catch (e) {
       _error = e.toString();
@@ -120,10 +116,14 @@ class PlaceProvider with ChangeNotifier {
   }
 
   Future<void> addPlaceFromUrl(String url) async {
-    if (_isLoading) return;
-    _isLoading = true;
+    // Non-blocking loading state - we don't set _isLoading globally to avoid blocking UI
+    // The BackgroundProcessingService will handle notifications
     _error = null;
     notifyListeners();
+
+    final bgService = BackgroundProcessingService();
+    await bgService.startService();
+    bgService.updateNotification(title: 'Processing Place', content: 'Initializing...', showProgress: true, progress: 0);
 
     try {
       // Validate Instagram URL format
@@ -145,20 +145,37 @@ class PlaceProvider with ChangeNotifier {
       }
 
       // Check network connectivity first
+      bgService.updateNotification(title: 'Processing Place', content: 'Checking connection...', showProgress: true, progress: 10);
       final hasNetwork = await _instagramService.isNetworkAvailable();
       if (!hasNetwork) {
         throw Exception('No internet connection');
       }
 
-      // 1. Download video using RapidAPI-based service
-      final videoPath = await _instagramService.downloadInstagramVideo(url);
+      // 1. Download media (video or images)
+      bgService.updateNotification(title: 'Processing Place', content: 'Downloading media...', showProgress: true, progress: 30);
+      final mediaPaths = await _instagramService.downloadInstagramPost(url);
+      
+      if (mediaPaths.isEmpty) {
+        throw Exception('No media found in post');
+      }
 
-      // 2. Generate thumbnail from video
-      final thumbnailPath = await _videoService.generateThumbnail(videoPath);
+      final mainMediaPath = mediaPaths.first;
+      final isVideo = mainMediaPath.toLowerCase().endsWith('.mp4');
+
+      // 2. Generate thumbnail from video or use image
+      bgService.updateNotification(title: 'Processing Place', content: 'Generating thumbnail...', showProgress: true, progress: 50);
+      
+      String? thumbnailPath;
+      if (isVideo) {
+        thumbnailPath = await _videoService.generateThumbnail(mainMediaPath);
+      } else {
+        thumbnailPath = mainMediaPath;
+      }
 
       // 3. Use Gemini to extract place information
+      bgService.updateNotification(title: 'Processing Place', content: 'Analyzing with AI...', showProgress: true, progress: 70);
       final result = await _geminiService.extractPlaces(
-        videoPath: videoPath,
+        videoPath: mainMediaPath,
         videoUrl: url,
       );
       
@@ -166,6 +183,7 @@ class PlaceProvider with ChangeNotifier {
       final suggestedTag = result['suggestedTag'] as String;
 
       // 4. Geocode locations if needed
+      bgService.updateNotification(title: 'Processing Place', content: 'Geocoding locations...', showProgress: true, progress: 85);
       final geocodedLocations = <Location>[];
       for (final location in place.locations) {
         if (location.latitude == null || location.longitude == null) {
@@ -189,27 +207,52 @@ class PlaceProvider with ChangeNotifier {
       );
 
       // 6. Add metadata (reel ID, paths, tag) and save to database
+      // Get thumbnail bytes
+      Uint8List? thumbnailData;
+      if (thumbnailPath != null) {
+         if (isVideo) {
+            thumbnailData = await _videoService.getThumbnailData(thumbnailPath);
+         } else {
+             final file = File(thumbnailPath);
+             if (await file.exists()) {
+               thumbnailData = await file.readAsBytes();
+             }
+         }
+      }
+
       final placeWithMetadata = place.copyWith(
         reelId: reelId,
         screenshotPath: thumbnailPath,
-        videoPath: videoPath,
+        videoPath: isVideo ? mainMediaPath : null,
         dateCreated: DateTime.now(),
         tagIds: matchingTag.id != null ? [matchingTag.id!] : [],
+        thumbnailData: thumbnailData,
+        mediaPaths: mediaPaths,
       );
 
+      bgService.updateNotification(title: 'Processing Place', content: 'Saving...', showProgress: true, progress: 95);
       await DatabaseHelper.instance.createPlace(placeWithMetadata);
 
       // 7. Reload places
       await loadPlaces();
 
       _error = null;
+      bgService.updateNotification(title: 'Place Added', content: 'Successfully processed!', showProgress: false);
+      // Wait a moment for the user to see "Success" then stop
+      await Future.delayed(const Duration(seconds: 3));
+      await bgService.stopService();
+
     } catch (e) {
       _error = e.toString();
+      bgService.updateNotification(title: 'Error Processing Place', content: e.toString(), showProgress: false);
       if (kDebugMode) {
         debugPrint('Error adding place: $e');
       }
+      // Wait for user to see error?
+      await Future.delayed(const Duration(seconds: 5));
+      await bgService.stopService();
     } finally {
-      _isLoading = false;
+      // _isLoading = false; // Intentionally removed to prevent UI blocking
       notifyListeners();
     }
   }
@@ -368,7 +411,15 @@ class PlaceProvider with ChangeNotifier {
           File(place.videoPath!).existsSync()) {
         final thumbnailPath =
             await _videoService.generateThumbnail(place.videoPath!);
-        final updatedPlace = place.copyWith(screenshotPath: thumbnailPath);
+        
+        final thumbnailData = thumbnailPath != null 
+            ? await _videoService.getThumbnailData(thumbnailPath) 
+            : null;
+
+        final updatedPlace = place.copyWith(
+          screenshotPath: thumbnailPath,
+          thumbnailData: thumbnailData
+        );
         await DatabaseHelper.instance.updatePlace(updatedPlace);
         await loadPlaces();
         _error = null;
@@ -396,10 +447,14 @@ class PlaceProvider with ChangeNotifier {
       
       // Generate thumbnail
       final thumbnailPath = await _videoService.generateThumbnail(videoPath);
+      final thumbnailData = thumbnailPath != null 
+          ? await _videoService.getThumbnailData(thumbnailPath) 
+          : null;
       
       final updatedPlace = place.copyWith(
         videoPath: videoPath,
         screenshotPath: thumbnailPath,
+        thumbnailData: thumbnailData,
       );
       
       await DatabaseHelper.instance.updatePlace(updatedPlace);

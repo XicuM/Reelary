@@ -8,6 +8,10 @@ import 'settings_service.dart';
 
 class InstagramService {
   
+  final http.Client _client;
+
+  InstagramService({http.Client? client}) : _client = client ?? http.Client();
+  
   Future<String> _getRapidApiKey() async {
     return await SettingsService.getEffectiveRapidApiKey() ?? '';
   }
@@ -16,31 +20,44 @@ class InstagramService {
       dotenv.env['RAPIDAPI_HOST'] ?? 'instagram-looter2.p.rapidapi.com';
   String get _endpoint => dotenv.env['INSTAGRAM_POST_INFO_ENDPOINT'] ?? '/post';
 
-  Future<String> downloadInstagramVideo(String instagramUrl) async {
+  Future<List<String>> downloadInstagramPost(String instagramUrl) async {
     try {
       // Validate Instagram URL
       if (!instagramUrl.contains('instagram.com')) {
         throw Exception('Invalid Instagram URL');
       }
 
-      debugPrint('Fetching video info from RapidAPI: $instagramUrl');
+      debugPrint('Fetching post info from RapidAPI: $instagramUrl');
 
-      // Step 1: Get video URL from RapidAPI
-      final videoUrl = await _getVideoUrlFromApi(instagramUrl);
+      // Step 1: Get media URLs from RapidAPI
+      final mediaUrls = await _getMediaUrlsFromApi(instagramUrl);
 
-      // Step 2: Download the video
-      final videoPath = await _downloadFile(videoUrl);
+      // Step 2: Download the files
+      final List<String> downloadedPaths = [];
+      for (final url in mediaUrls) {
+        final path = await _downloadFile(url);
+        downloadedPaths.add(path);
+      }
 
-      debugPrint('Video downloaded successfully to: $videoPath');
-      return videoPath;
+      debugPrint('Downloaded ${downloadedPaths.length} files successfully.');
+      return downloadedPaths;
     } catch (e) {
-      debugPrint('Error downloading Instagram video: $e');
+      debugPrint('Error downloading Instagram post: $e');
       rethrow;
     }
   }
 
-  /// Fetches video URL from RapidAPI Instagram Downloader
-  Future<String> _getVideoUrlFromApi(String instagramUrl) async {
+  // Deprecated: kept for backward compatibility if needed, but redirects to new method
+  Future<String> downloadInstagramVideo(String instagramUrl) async {
+    final paths = await downloadInstagramPost(instagramUrl);
+    if (paths.isNotEmpty) {
+      return paths.first;
+    }
+    throw Exception('No media found');
+  }
+
+  /// Fetches media URLs from RapidAPI Instagram Downloader
+  Future<List<String>> _getMediaUrlsFromApi(String instagramUrl) async {
     final rapidApiKey = await _getRapidApiKey();
     
     if (rapidApiKey.isEmpty) {
@@ -60,7 +77,7 @@ class InstagramService {
       });
 
       debugPrint('Querying Instagram Looter API: $_endpoint');
-      final response = await http.get(
+      final response = await _client.get(
         uri,
         headers: {
           'X-RapidAPI-Key': rapidApiKey,
@@ -80,26 +97,91 @@ class InstagramService {
         throw Exception(
             'API returned unsuccessful status. Response: ${response.body}');
       }
-
-      // Extract video URL from Instagram Looter API response
-      // The API returns video_url directly for video posts
-      String? videoUrl;
-
-      if (data['video_url'] is String &&
-          (data['video_url'] as String).isNotEmpty) {
-        videoUrl = data['video_url'];
-      } else if (data['display_url'] is String) {
-        // Fallback to display_url (image) if no video
-        videoUrl = data['display_url'];
+      
+      // Log full response for debugging
+      if (kDebugMode) {
+        debugPrint('API Response: ${json.encode(data)}');
       }
 
-      if (videoUrl == null || videoUrl.isEmpty) {
+      final Set<String> uniqueUrls = {};
+
+      // 1. Check 'edge_sidecar_to_children' (Raw GraphAPI - most reliable for carousels)
+      // Check top level and inside 'shortcode_media' or 'graphql.shortcode_media'
+      List? edges;
+      if (data['edge_sidecar_to_children']?['edges'] is List) {
+        edges = data['edge_sidecar_to_children']['edges'];
+      } else if (data['shortcode_media']?['edge_sidecar_to_children']?['edges'] is List) {
+        edges = data['shortcode_media']['edge_sidecar_to_children']['edges'];
+      } else if (data['graphql']?['shortcode_media']?['edge_sidecar_to_children']?['edges'] is List) {
+        edges = data['graphql']['shortcode_media']['edge_sidecar_to_children']['edges'];
+      }
+
+      if (edges != null) {
+        for (var edge in edges) {
+           final node = edge['node'];
+           if (node != null) {
+              if (node['is_video'] == true && node['video_url'] != null) {
+                 uniqueUrls.add(node['video_url']);
+              } else if (node['display_url'] != null) {
+                 uniqueUrls.add(node['display_url']);
+              } else if (node['display_resources'] is List && node['display_resources'].isNotEmpty) {
+                 uniqueUrls.add(node['display_resources'].last['src']);
+              }
+           }
+        }
+      }
+
+      // 2. Check 'carousel_media' (RapidAPI normalized)
+      if (data['carousel_media'] is List) {
+         for (var item in data['carousel_media']) {
+           if (item is Map && item['url'] is String) {
+             uniqueUrls.add(item['url']);
+           } else if (item is String) {
+             uniqueUrls.add(item);
+           }
+        }
+      }
+
+      // 3. Check 'medias' list (RapidAPI normalized)
+      if (data['medias'] is List) {
+        for (var item in data['medias']) {
+           if (item is Map && item['url'] is String) {
+             uniqueUrls.add(item['url']);
+           } else if (item is String) {
+             uniqueUrls.add(item);
+           }
+        }
+      }
+
+      // 4. Check 'display_resources' for single post high-res
+      // Only if we haven't found anything yet, because sometimes this is just the cover of a carousel
+      if (uniqueUrls.isEmpty && data['display_resources'] is List) {
+         for (var item in data['display_resources']) {
+           if (item is Map && item['src'] is String) {
+             uniqueUrls.add(item['src']);
+           }
+        }
+      }
+      
+      // 5. Fallback to single fields if nothing found
+      if (uniqueUrls.isEmpty) {
+         if (data['video_url'] is String && (data['video_url'] as String).isNotEmpty) {
+          uniqueUrls.add(data['video_url']);
+        } else if (data['display_url'] is String && (data['display_url'] as String).isNotEmpty) {
+          uniqueUrls.add(data['display_url']);
+        }
+      }
+
+      if (uniqueUrls.isEmpty) {
+        // Fallback: Dump keys to help debug
+        debugPrint('Available keys: ${data.keys.toList()}');
         throw Exception(
-            'No video URL found in API response. This might be an image post or carousel. Response: ${response.body}');
+            'No media URLs found in API response. See logs for details.');
       }
 
-      debugPrint('Video URL retrieved: $videoUrl');
-      return videoUrl;
+      final mediaUrls = uniqueUrls.toList();
+      debugPrint('Found ${mediaUrls.length} media URLs in total.');
+      return mediaUrls;
     } catch (e) {
       debugPrint('Error fetching from RapidAPI: $e');
       rethrow;
@@ -132,7 +214,7 @@ class InstagramService {
       debugPrint('Downloading file from: $url');
 
       // Download the file
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse(url),
         headers: {
           'User-Agent':

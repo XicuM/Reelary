@@ -14,7 +14,9 @@ class Place {
   final int? folderId;
   final String? reelId;
   final List<int> tagIds; // References to PlaceTag ids
+
   final Uint8List? thumbnailData;
+  final List<String> mediaPaths;
 
   Place({
     this.id,
@@ -29,6 +31,7 @@ class Place {
     this.reelId,
     this.tagIds = const [],
     this.thumbnailData,
+    this.mediaPaths = const [],
   });
 
   Map<String, dynamic> toMap() {
@@ -45,6 +48,7 @@ class Place {
       'reelId': reelId,
       'tagIds': jsonEncode(tagIds),
       'thumbnailData': thumbnailData,
+      'mediaPaths': jsonEncode(mediaPaths),
     };
   }
 
@@ -72,6 +76,9 @@ class Place {
       reelId: map['reelId'] as String?,
       tagIds: tagIds,
       thumbnailData: map['thumbnailData'],
+      mediaPaths: map['mediaPaths'] != null
+          ? List<String>.from(jsonDecode(map['mediaPaths']))
+          : [],
     );
   }
 
@@ -88,6 +95,7 @@ class Place {
     String? reelId,
     List<int>? tagIds,
     Uint8List? thumbnailData,
+    List<String>? mediaPaths,
   }) {
     return Place(
       id: id ?? this.id,
@@ -102,6 +110,7 @@ class Place {
       reelId: reelId ?? this.reelId,
       tagIds: tagIds ?? this.tagIds,
       thumbnailData: thumbnailData ?? this.thumbnailData,
+      mediaPaths: mediaPaths ?? this.mediaPaths,
     );
   }
 }

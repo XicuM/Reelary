@@ -23,38 +23,10 @@ class _HomeScreenState extends State<HomeScreen> {
     String selectedEmoji = '📁';
 
     final List<String> emojiOptions = [
-      '📁',
-      '🍕',
-      '🍔',
-      '🍰',
-      '🥗',
-      '🍜',
-      '🍳',
-      '🥘',
-      '🍲',
-      '🥙',
-      '🌮',
-      '🍱',
-      '🍛',
-      '🍝',
-      '🥟',
-      '🍩',
-      '🧁',
-      '🍪',
-      '☕',
-      '🍷',
-      '🥂',
-      '🎂',
-      '🍾',
-      '🥃',
-      '❤️',
-      '⭐',
-      '🔥',
-      '✨',
-      '🎉',
-      '💚',
-      '💙',
-      '💜'
+      '📁', '🍕', '🍔', '🍰', '🥗', '🍜', '🍳', '🥘', '🍲', '🥙', '🌮',
+      '🍱', '🍛', '🍝', '🥟', '🍩', '🧁', '🍪', '☕', '🍷', '🥂', '🎂',
+      '🍾', '🥃', '🥣', '🥡', '🥢', '🍽️', '🍴', '🥄', '🔪', '🏺', '🧂',
+      '🧊', '🔥', '✨', '🎉', '❤️', '💚', '💙', '💜'
     ];
 
     showDialog(
@@ -150,43 +122,41 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showDeleteFolderConfirmDialog(RecipeFolder folder) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Folder?'),
+        content: Text(
+            'Are you sure you want to delete "${folder.name}"? Recipes inside will be moved to "No Folder".'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Provider.of<RecipeProvider>(context, listen: false)
+                  .deleteFolder(folder.id!);
+              Navigator.pop(context); // Close confirm dialog
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showEditFolderDialog(RecipeFolder folder) {
     final nameController = TextEditingController(text: folder.name);
     String selectedEmoji = folder.emoji;
 
     final List<String> emojiOptions = [
-      '📁',
-      '🍕',
-      '🍔',
-      '🍰',
-      '🥗',
-      '🍜',
-      '🍳',
-      '🥘',
-      '🍲',
-      '🥙',
-      '🌮',
-      '🍱',
-      '🍛',
-      '🍝',
-      '🥟',
-      '🍩',
-      '🧁',
-      '🍪',
-      '☕',
-      '🍷',
-      '🥂',
-      '🎂',
-      '🍾',
-      '🥃',
-      '❤️',
-      '⭐',
-      '🔥',
-      '✨',
-      '🎉',
-      '💚',
-      '💙',
-      '💜'
+      '📁', '🍕', '🍔', '🍰', '🥗', '🍜', '🍳', '🥘', '🍲', '🥙', '🌮',
+      '🍱', '🍛', '🍝', '🥟', '🍩', '🧁', '🍪', '☕', '🍷', '🥂', '🎂',
+      '🍾', '🥃', '🥣', '🥡', '🥢', '🍽️', '🍴', '🥄', '🔪', '🏺', '🧂',
+      '🧊', '🔥', '✨', '🎉', '❤️', '💚', '💙', '💜'
     ];
 
     showDialog(
@@ -261,6 +231,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Close edit dialog
+                _showDeleteFolderConfirmDialog(folder);
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
@@ -367,11 +345,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     scrollDirection: Axis.horizontal,
                     itemCount: provider.folders.length + 1,
                     itemBuilder: (context, index) {
-                      if (index == 0) {
-                        // "All Recipes" folder
-                        final isSelected = provider.selectedFolderId == -1;
+                        if (index == 0) {
+                        // "No Folder" folder
+                        final isSelected = provider.selectedFolderId == null;
                         return GestureDetector(
-                          onTap: () => provider.selectFolder(-1),
+                          onTap: () => provider.selectFolder(null),
                           child: Container(
                             width: 80,
                             margin: const EdgeInsets.only(right: 12),
@@ -393,13 +371,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                   ),
                                   child: Center(
-                                    child: Text('🏠',
-                                        style: const TextStyle(fontSize: 32)),
+                                    child: Icon(
+                                      Icons.folder_off_outlined,
+                                      size: 32,
+                                      color: isSelected
+                                          ? colorScheme.primary
+                                          : colorScheme.onSurfaceVariant,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'All',
+                                  'No Folder',
                                   style: theme.textTheme.bodySmall,
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.center,
@@ -468,7 +451,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
                 if (provider.error != null) {
                   return Center(
-                    child: Padding(
+                    child: SingleChildScrollView(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
