@@ -140,7 +140,7 @@ class GeminiService {
   }
 
   Future<Recipe> generateRecipe({
-    required String videoPath,
+    required List<String> mediaPaths, // Changed from videoPath to mediaPaths
     required String authorComment,
     required String videoUrl,
   }) async {
@@ -148,11 +148,9 @@ class GeminiService {
       final key = await _getApiKey(); // Ensure key is fresh
       final model = await _getModel();
       
-      final videoFile = File(videoPath);
-      final videoBytes = await videoFile.readAsBytes();
-
-      final prompt = '''
-      Extract a recipe from this video and the author's comment.
+      final List<Part> parts = [];
+      parts.add(TextPart('''
+      Extract a recipe from these videos/images and the author's comment.
       
       Author's Comment:
       $authorComment
@@ -160,12 +158,17 @@ class GeminiService {
       Please provide the output in the following JSON format:
       {
         "title": "Recipe Title",
-        "ingredients": [
-          {
-            "name": "Ingredient Name (just the ingredient, without quantity)",
-            "quantity": "Quantity as a number or fraction (e.g. 2, 1/2, 0.5, 100)",
-            "unit": "Unit of measurement (e.g. cup, cups, g, grams, ml, tbsp, tsp, oz, lb, kg, or empty string if none)"
-          }
+        "variations": [
+           {
+              "name": "Original (or Variation Name)",
+              "ingredients": [
+                {
+                  "name": "Ingredient Name (just the ingredient, without quantity)",
+                  "quantity": "Quantity as a number or fraction (e.g. 2, 1/2, 0.5, 100)",
+                  "unit": "Unit of measurement (e.g. cup, cups, g, grams, ml, tbsp, tsp, oz, lb, kg, or empty string if none)"
+                }
+              ]
+           }
         ],
         "steps": [
           "Step 1 description",
@@ -184,17 +187,28 @@ class GeminiService {
         * "100g butter" -> {"name": "butter", "quantity": "100", "unit": "g"}
         * "Salt to taste" -> {"name": "salt", "quantity": "to taste", "unit": ""}
       
+      Important instructions for variations:
+      - This input likely contains a carousel of images/videos. Each one might represent a DIFFERENT variation or flavor of a recipe.
+      - Please analyze ALL provided media files.
+      - If the media shows multiple versions of the recipe (e.g. "3 ways to make oats", "Strawberry vs Chocolate flavor"), catch them as separate items in "variations".
+      - If there is only one recipe shown across all media, create a single item in "variations" named "Original".
+      - Each variation has its own list of ingredients.
+      - The steps should be generic enough to apply to all variations, or mention where they diverge (e.g. "Add your chosen topping").
+      
       If the video or comment does not contain a recipe, return a JSON with empty fields but do not error out.
-      ''';
+      '''));
 
-      final mimeType = _getMimeType(videoPath);
+      // Add all media files to the request
+      for (final path in mediaPaths) {
+        final file = File(path);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          final mimeType = _getMimeType(path);
+          parts.add(DataPart(mimeType, bytes));
+        }
+      }
 
-      final content = [
-        Content.multi([
-          TextPart(prompt),
-          DataPart(mimeType, videoBytes),
-        ])
-      ];
+      final content = [Content.multi(parts)];
 
       final response = await model.generateContent(content);
 
@@ -217,11 +231,18 @@ class GeminiService {
 
       final jsonResponse = jsonDecode(responseText);
 
-      List<Ingredient> ingredients = [];
-      if (jsonResponse['ingredients'] != null) {
-        ingredients = List<Ingredient>.from(
+      List<RecipeVariation> variations = [];
+      if (jsonResponse['variations'] != null) {
+        variations = List<RecipeVariation>.from(
+          jsonResponse['variations'].map((x) => RecipeVariation.fromMap(x)),
+        );
+      } 
+      // Fallback for backward compatibility or hallucination
+      else if (jsonResponse['ingredients'] != null) {
+         final ingredients = List<Ingredient>.from(
           jsonResponse['ingredients'].map((x) => Ingredient.fromMap(x)),
         );
+        variations.add(RecipeVariation(name: 'Original', ingredients: ingredients));
       }
 
       List<String> steps = [];
@@ -229,10 +250,17 @@ class GeminiService {
         steps = List<String>.from(jsonResponse['steps']);
       }
 
+      // Use the first variation's ingredients as the "main" list for backward compatibility
+      List<Ingredient> mainIngredients = [];
+      if (variations.isNotEmpty) {
+        mainIngredients = variations.first.ingredients;
+      }
+
       return Recipe(
         title: jsonResponse['title'] ?? 'Unknown Recipe',
         videoUrl: videoUrl,
-        ingredients: ingredients,
+        ingredients: mainIngredients,
+        variations: variations,
         steps: steps,
         authorComment: authorComment,
         dateCreated: DateTime.now(),
@@ -285,6 +313,8 @@ class GeminiService {
       - If no specific address is visible, leave it as null
       - The title should summarize what all the locations are about
       - If the video shows a route or tour, mention that in the title
+      - If a generic region or city is mentioned (e.g., 'The Alps', 'London', 'Tuscany') alongside specific spots within that region, do NOT include the generic region as a separate item in the 'locations' list. Only list the specific spots.
+      - However, if ONLY the generic region is mentioned and no specific spots are identified, then it is okay to list the generic region.
       
       If the video does not contain any identifiable places, return a JSON with a generic title like "Location" and an empty description, but at least one location with just a name.
       ''';

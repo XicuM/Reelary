@@ -15,6 +15,7 @@ class Recipe {
   final String? reelId;
   final Uint8List? thumbnailData;
   final List<String> mediaPaths;
+  final List<RecipeVariation> variations;
 
   Recipe({
     this.id,
@@ -30,6 +31,7 @@ class Recipe {
     this.reelId,
     this.thumbnailData,
     this.mediaPaths = const [],
+    this.variations = const [],
   });
 
   Map<String, dynamic> toMap() {
@@ -47,6 +49,7 @@ class Recipe {
       'reelId': reelId,
       'thumbnailData': thumbnailData,
       'mediaPaths': jsonEncode(mediaPaths),
+      'variations': jsonEncode(variations.map((x) => x.toMap()).toList()),
     };
   }
 
@@ -72,6 +75,10 @@ class Recipe {
       mediaPaths: map['mediaPaths'] != null
           ? List<String>.from(jsonDecode(map['mediaPaths']))
           : [],
+      variations: map['variations'] != null
+          ? List<RecipeVariation>.from(
+              jsonDecode(map['variations']).map((x) => RecipeVariation.fromMap(x)))
+          : [],
     );
   }
 
@@ -89,6 +96,7 @@ class Recipe {
     String? reelId,
     Uint8List? thumbnailData,
     List<String>? mediaPaths,
+    List<RecipeVariation>? variations,
   }) {
     return Recipe(
       id: id ?? this.id,
@@ -104,6 +112,7 @@ class Recipe {
       reelId: reelId ?? this.reelId,
       thumbnailData: thumbnailData ?? this.thumbnailData,
       mediaPaths: mediaPaths ?? this.mediaPaths,
+      variations: variations ?? this.variations,
     );
   }
 }
@@ -132,6 +141,33 @@ class Ingredient {
       name: map['name'] ?? '',
       quantity: map['quantity'] ?? '',
       unit: map['unit'] ?? '',
+    );
+  }
+}
+
+class RecipeVariation {
+  final String name;
+  final List<Ingredient> ingredients;
+
+  RecipeVariation({
+    required this.name,
+    required this.ingredients,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'ingredients': ingredients.map((x) => x.toMap()).toList(),
+    };
+  }
+
+  factory RecipeVariation.fromMap(Map<String, dynamic> map) {
+    return RecipeVariation(
+      name: map['name'] ?? '',
+      ingredients: map['ingredients'] != null
+          ? List<Ingredient>.from(
+              (map['ingredients'] as List).map((x) => Ingredient.fromMap(x)))
+          : [],
     );
   }
 }

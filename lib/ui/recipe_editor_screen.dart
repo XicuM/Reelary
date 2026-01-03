@@ -16,8 +16,9 @@ class _RecipeEditorScreenState extends State<RecipeEditorScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
   late TextEditingController _authorCommentController;
-  late List<Ingredient> _ingredients;
+  late List<RecipeVariation> _variations;
   late List<String> _steps;
+  int _currentVariationIndex = 0;
   bool _isSaving = false;
 
   @override
@@ -25,7 +26,23 @@ class _RecipeEditorScreenState extends State<RecipeEditorScreen> {
     super.initState();
     _titleController = TextEditingController(text: widget.recipe.title);
     _authorCommentController = TextEditingController(text: widget.recipe.authorComment ?? '');
-    _ingredients = List.from(widget.recipe.ingredients);
+    
+    // Initialize variations
+    if (widget.recipe.variations.isNotEmpty) {
+      _variations = widget.recipe.variations.map((v) => RecipeVariation(
+        name: v.name,
+        ingredients: List.from(v.ingredients),
+      )).toList();
+    } else {
+      // Create default variation from existing ingredients
+      _variations = [
+        RecipeVariation(
+          name: 'Original',
+          ingredients: List.from(widget.recipe.ingredients),
+        )
+      ];
+    }
+
     _steps = List.from(widget.recipe.steps);
   }
 
@@ -44,7 +61,8 @@ class _RecipeEditorScreenState extends State<RecipeEditorScreen> {
     try {
       final updatedRecipe = widget.recipe.copyWith(
         title: _titleController.text.trim(),
-        ingredients: _ingredients,
+        ingredients: _variations.isNotEmpty ? _variations.first.ingredients : [],
+        variations: _variations,
         steps: _steps,
         authorComment: _authorCommentController.text.trim().isEmpty 
             ? null 
@@ -73,13 +91,44 @@ class _RecipeEditorScreenState extends State<RecipeEditorScreen> {
 
   void _addIngredient() {
     setState(() {
-      _ingredients.add(Ingredient(name: '', quantity: '', unit: ''));
+      _variations[_currentVariationIndex].ingredients.add(
+        Ingredient(name: '', quantity: '', unit: '')
+      );
     });
   }
 
   void _removeIngredient(int index) {
     setState(() {
-      _ingredients.removeAt(index);
+      _variations[_currentVariationIndex].ingredients.removeAt(index);
+    });
+  }
+
+  void _addVariation() {
+    setState(() {
+      _variations.add(RecipeVariation(
+        name: 'Variation ${_variations.length + 1}',
+        ingredients: [],
+      ));
+      _currentVariationIndex = _variations.length - 1;
+    });
+  }
+
+  void _removeVariation(int index) {
+    if (_variations.length <= 1) return;
+    setState(() {
+      _variations.removeAt(index);
+      if (_currentVariationIndex >= _variations.length) {
+        _currentVariationIndex = _variations.length - 1;
+      }
+    });
+  }
+
+  void _renameVariation(String newName) {
+    setState(() {
+      _variations[_currentVariationIndex] = RecipeVariation(
+        name: newName,
+        ingredients: _variations[_currentVariationIndex].ingredients,
+      );
     });
   }
 
@@ -137,16 +186,16 @@ class _RecipeEditorScreenState extends State<RecipeEditorScreen> {
 
                   const SizedBox(height: 32),
 
-                  // Ingredients Section
+                  // Variations Section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.shopping_basket, color: colorScheme.primary),
+                          Icon(Icons.style, color: colorScheme.primary),
                           const SizedBox(width: 8),
                           Text(
-                            'Ingredients',
+                            'Variations',
                             style: theme.textTheme.headlineSmall?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
@@ -155,93 +204,192 @@ class _RecipeEditorScreenState extends State<RecipeEditorScreen> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.add_circle),
-                        onPressed: _addIngredient,
-                        tooltip: 'Add Ingredient',
+                        onPressed: _addVariation,
+                        tooltip: 'Add Variation',
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
+                  
+                  // Variations Tabs
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _variations.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final variation = entry.value;
+                        final isSelected = index == _currentVariationIndex;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: ChoiceChip(
+                            label: Text(variation.name.isNotEmpty ? variation.name : 'Untitled'),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              if (selected) {
+                                setState(() {
+                                  _currentVariationIndex = index;
+                                });
+                              }
+                            },
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
-                  ..._ingredients.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final ingredient = entry.value;
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          children: [
+                  // Current Variation Editor
+                  Card(
+                    color: colorScheme.surfaceContainerHighest,
+                    elevation: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                            // Variation Name & Actions
                             Row(
                               children: [
                                 Expanded(
-                                  flex: 2,
                                   child: TextFormField(
-                                    initialValue: ingredient.name,
+                                    key: ValueKey('variation_name_$_currentVariationIndex'),
+                                    initialValue: _variations[_currentVariationIndex].name,
                                     decoration: const InputDecoration(
-                                      labelText: 'Name',
-                                      isDense: true,
+                                      labelText: 'Variation Name',
+                                      prefixIcon: Icon(Icons.edit),
                                     ),
-                                    onChanged: (value) {
-                                      _ingredients[index] = Ingredient(
-                                        name: value,
-                                        quantity: ingredient.quantity,
-                                        unit: ingredient.unit,
-                                      );
-                                    },
-                                    validator: (value) {
-                                      if (value == null || value.trim().isEmpty) {
-                                        return 'Required';
-                                      }
-                                      return null;
-                                    },
+                                    onChanged: _renameVariation,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextFormField(
-                                    initialValue: ingredient.quantity,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Qty',
-                                      isDense: true,
-                                    ),
-                                    onChanged: (value) {
-                                      _ingredients[index] = Ingredient(
-                                        name: ingredient.name,
-                                        quantity: value,
-                                        unit: ingredient.unit,
-                                      );
-                                    },
+                                if (_variations.length > 1)
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline),
+                                    color: colorScheme.error,
+                                    onPressed: () => _removeVariation(_currentVariationIndex),
+                                    tooltip: 'Delete Variation',
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextFormField(
-                                    initialValue: ingredient.unit,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Unit',
-                                      isDense: true,
-                                    ),
-                                    onChanged: (value) {
-                                      _ingredients[index] = Ingredient(
-                                        name: ingredient.name,
-                                        quantity: ingredient.quantity,
-                                        unit: value,
-                                      );
-                                    },
-                                  ),
+                              ],
+                            ),
+                            const Divider(height: 32),
+                            
+                            // Ingredients Header
+                             Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Ingredients',
+                                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete, size: 20),
-                                  onPressed: () => _removeIngredient(index),
-                                  color: Colors.red,
+                                  icon: const Icon(Icons.add_circle),
+                                  onPressed: _addIngredient,
+                                  tooltip: 'Add Ingredient',
                                 ),
                               ],
                             ),
-                          ],
-                        ),
+                            const SizedBox(height: 8),
+
+                            // Ingredients List
+                            ..._variations[_currentVariationIndex].ingredients.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final ingredient = entry.value;
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                color: colorScheme.surface,
+                                key: ValueKey('variation_ingredient_${_currentVariationIndex}_$index'),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        flex: 2,
+                                        child: TextFormField(
+                                          initialValue: ingredient.name,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Name',
+                                            isDense: true,
+                                            border: InputBorder.none,
+                                          ),
+                                          onChanged: (value) {
+                                            setState(() {
+                                              _variations[_currentVariationIndex].ingredients[index] = Ingredient(
+                                                name: value,
+                                                quantity: ingredient.quantity,
+                                                unit: ingredient.unit,
+                                              );
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                      Container(width: 1, height: 24, color: colorScheme.outlineVariant),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: TextFormField(
+                                          initialValue: ingredient.quantity,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Qty',
+                                            isDense: true,
+                                            border: InputBorder.none,
+                                          ),
+                                          onChanged: (value) {
+                                             setState(() {
+                                              _variations[_currentVariationIndex].ingredients[index] = Ingredient(
+                                                name: ingredient.name,
+                                                quantity: value,
+                                                unit: ingredient.unit,
+                                              );
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                      Container(width: 1, height: 24, color: colorScheme.outlineVariant),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: TextFormField(
+                                          initialValue: ingredient.unit,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Unit',
+                                            isDense: true,
+                                            border: InputBorder.none,
+                                          ),
+                                          onChanged: (value) {
+                                             setState(() {
+                                              _variations[_currentVariationIndex].ingredients[index] = Ingredient(
+                                                name: ingredient.name,
+                                                quantity: ingredient.quantity,
+                                                unit: value,
+                                              );
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.close, size: 18),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () => _removeIngredient(index),
+                                        color: colorScheme.error,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }),
+                            
+                            if (_variations[_currentVariationIndex].ingredients.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Center(
+                                  child: Text(
+                                    'No ingredients added yet',
+                                    style: TextStyle(color: colorScheme.outline),
+                                  ),
+                                ),
+                              ),
+                        ],
                       ),
-                    );
-                  }),
+                    ),
+                  ),
 
                   const SizedBox(height: 32),
 

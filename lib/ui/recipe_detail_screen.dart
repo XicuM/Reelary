@@ -23,6 +23,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   final Set<int> _completedSteps = {};
   late Recipe _currentRecipe;
   late PageController _pageController;
+  late PageController _ingredientsPageController;
   int _activePage = 0;
 
   @override
@@ -30,11 +31,13 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     super.initState();
     _currentRecipe = widget.recipe;
     _pageController = PageController();
+    _ingredientsPageController = PageController();
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _ingredientsPageController.dispose();
     super.dispose();
   }
 
@@ -578,6 +581,108 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Widget _buildIngredientsSection(BuildContext context, ColorScheme colorScheme, ThemeData theme) {
+    // Check if we have variations
+    if (_currentRecipe.variations.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.shopping_basket, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Ingredients',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Variations Carousel
+          SizedBox(
+            height: 400, // Adjust height as needed
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: {
+                  PointerDeviceKind.touch,
+                  PointerDeviceKind.mouse,
+                },
+              ),
+              child: PageView.builder(
+              controller: _ingredientsPageController,
+              itemCount: _currentRecipe.variations.length,
+              itemBuilder: (context, index) {
+                final variation = _currentRecipe.variations[index];
+                return Column(
+                  children: [
+                    // Variation Header with Navigation
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                          IconButton(
+                            icon: const Icon(Icons.chevron_left),
+                            onPressed: index > 0 ? () {
+                              _ingredientsPageController.previousPage(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                            } : null, 
+                            color: index > 0 ? colorScheme.primary : Colors.transparent,
+                          ),
+
+                        Expanded(
+                          child: Text(
+                            variation.name,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.secondary,
+                            ),
+                          ),
+                        ),
+
+                           IconButton(
+                            icon: const Icon(Icons.chevron_right),
+                            onPressed: index < _currentRecipe.variations.length - 1 ? () {
+                              _ingredientsPageController.nextPage(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                            } : null,
+                            color: index < _currentRecipe.variations.length - 1 ? colorScheme.primary : Colors.transparent,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Ingredients List for this variation
+                    Expanded(
+                      child: Card(
+                        elevation: 0,
+                        color: colorScheme.surfaceContainerHighest,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: SingleChildScrollView(
+                            child: Column(
+                                children: variation.ingredients.map((ingredient) {
+                                  return _buildIngredientItem(ingredient, colorScheme, theme);
+                                }).toList(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+            ),
+          ),
+        ],
+      );
+    }
+    
+    // Fallback for no variations (old behavior)
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -601,73 +706,71 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: _currentRecipe.ingredients.map((ingredient) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        margin: const EdgeInsets.only(top: 8),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: RichText(
-                          text: TextSpan(
-                            style:
-                                theme.textTheme.bodyLarge?.copyWith(
-                              color: theme.textTheme.bodyLarge?.color,
-                            ),
-                            children: [
-                              if (ingredient.quantity.isNotEmpty) ...[
-                                TextSpan(
-                                  text: ingredient.quantity,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.primary,
-                                    fontSize: (theme
-                                                .textTheme
-                                                .bodyLarge
-                                                ?.fontSize ??
-                                            16) +
-                                        1,
-                                  ),
-                                ),
-                                const TextSpan(text: ' '),
-                              ],
-                              if (ingredient.unit.isNotEmpty) ...[
-                                TextSpan(
-                                  text: ingredient.unit,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: colorScheme.secondary,
-                                  ),
-                                ),
-                                const TextSpan(text: ' '),
-                              ],
-                              TextSpan(
-                                text: ingredient.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.normal,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
+                return _buildIngredientItem(ingredient, colorScheme, theme);
               }).toList(),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildIngredientItem(Ingredient ingredient, ColorScheme colorScheme, ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            margin: const EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.textTheme.bodyLarge?.color,
+                ),
+                children: [
+                  if (ingredient.quantity.isNotEmpty) ...[
+                    TextSpan(
+                      text: ingredient.quantity,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                        fontSize: (theme.textTheme.bodyLarge?.fontSize ?? 16) + 1,
+                      ),
+                    ),
+                    const TextSpan(text: ' '),
+                  ],
+                  if (ingredient.unit.isNotEmpty) ...[
+                    TextSpan(
+                      text: ingredient.unit,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.secondary,
+                      ),
+                    ),
+                    const TextSpan(text: ' '),
+                  ],
+                  TextSpan(
+                    text: ingredient.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

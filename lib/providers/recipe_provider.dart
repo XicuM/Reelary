@@ -123,11 +123,9 @@ class RecipeProvider with ChangeNotifier {
       }
 
       // 3. Generate Recipe using Gemini
-      // Note: We might want to pass all images to Gemini if it supports it, 
-      // but for now let's stick to the main one to avoid breaking API limits.
       bgService.updateNotification(title: 'Processing Recipe', content: 'Analyzing with AI...', showProgress: true, progress: 70);
       Recipe recipe = await _geminiService.generateRecipe(
-        videoPath: mainMediaPath,
+        mediaPaths: mediaPaths,
         authorComment: '', 
         videoUrl: url,
       );
