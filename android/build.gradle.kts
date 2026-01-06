@@ -30,13 +30,28 @@ subprojects {
     if (project.name != "app") {
         plugins.withId("com.android.library") {
             extensions.configure<com.android.build.gradle.LibraryExtension> {
-                // Do not configure compileOptions here, as the toolchain will handle it.
+                compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
+                }
             }
         }
 
         plugins.withId("org.jetbrains.kotlin.android") {
             extensions.configure<KotlinAndroidProjectExtension> {
                 jvmToolchain(17)
+            }
+        }
+
+        tasks.withType<JavaCompile> {
+            sourceCompatibility = "17"
+            targetCompatibility = "17"
+            options.compilerArgs.add("-Xlint:-options")
+        }
+
+        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+            compilerOptions {
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
             }
         }
     }
