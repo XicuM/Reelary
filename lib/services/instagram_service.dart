@@ -105,69 +105,78 @@ class InstagramService {
 
       final Set<String> uniqueUrls = {};
 
-      // 1. Check 'edge_sidecar_to_children' (Raw GraphAPI - most reliable for carousels)
-      // Check top level and inside 'shortcode_media' or 'graphql.shortcode_media'
-      List? edges;
-      if (data['edge_sidecar_to_children']?['edges'] is List) {
-        edges = data['edge_sidecar_to_children']['edges'];
-      } else if (data['shortcode_media']?['edge_sidecar_to_children']?['edges'] is List) {
-        edges = data['shortcode_media']['edge_sidecar_to_children']['edges'];
-      } else if (data['graphql']?['shortcode_media']?['edge_sidecar_to_children']?['edges'] is List) {
-        edges = data['graphql']['shortcode_media']['edge_sidecar_to_children']['edges'];
+      // 1. Check for single video (Reel) - Highest Priority
+      if (data['video_url'] is String && (data['video_url'] as String).isNotEmpty) {
+        uniqueUrls.add(data['video_url']);
       }
 
-      if (edges != null) {
-        for (var edge in edges) {
-           final node = edge['node'];
-           if (node != null) {
-              if (node['is_video'] == true && node['video_url'] != null) {
-                 uniqueUrls.add(node['video_url']);
-              } else if (node['display_url'] != null) {
-                 uniqueUrls.add(node['display_url']);
-              } else if (node['display_resources'] is List && node['display_resources'].isNotEmpty) {
-                 uniqueUrls.add(node['display_resources'].last['src']);
-              }
-           }
+      // 2. Check for carousel - Secondary Priority
+      if (uniqueUrls.isEmpty) {
+        // 2a. Check 'edge_sidecar_to_children' (Raw GraphAPI - most reliable for carousels)
+        // Check top level and inside 'shortcode_media' or 'graphql.shortcode_media'
+        List? edges;
+        if (data['edge_sidecar_to_children']?['edges'] is List) {
+          edges = data['edge_sidecar_to_children']['edges'];
+        } else if (data['shortcode_media']?['edge_sidecar_to_children']?['edges'] is List) {
+          edges = data['shortcode_media']['edge_sidecar_to_children']['edges'];
+        } else if (data['graphql']?['shortcode_media']?['edge_sidecar_to_children']?['edges'] is List) {
+          edges = data['graphql']['shortcode_media']['edge_sidecar_to_children']['edges'];
+        }
+
+        if (edges != null) {
+          for (var edge in edges) {
+             final node = edge['node'];
+             if (node != null) {
+                if (node['is_video'] == true && node['video_url'] != null) {
+                   uniqueUrls.add(node['video_url']);
+                } else if (node['display_url'] != null) {
+                   uniqueUrls.add(node['display_url']);
+                } else if (node['display_resources'] is List && node['display_resources'].isNotEmpty) {
+                   uniqueUrls.add(node['display_resources'].last['src']);
+                }
+             }
+          }
+        }
+
+        // 2b. Check 'carousel_media' (RapidAPI normalized)
+        if (uniqueUrls.isEmpty && data['carousel_media'] is List) {
+           for (var item in data['carousel_media']) {
+             if (item is Map && item['url'] is String) {
+               uniqueUrls.add(item['url']);
+             } else if (item is String) {
+               uniqueUrls.add(item);
+             }
+          }
+        }
+
+        // 2c. Check 'medias' list (RapidAPI normalized)
+        if (uniqueUrls.isEmpty && data['medias'] is List) {
+          for (var item in data['medias']) {
+             if (item is Map && item['url'] is String) {
+               uniqueUrls.add(item['url']);
+             } else if (item is String) {
+               uniqueUrls.add(item);
+             }
+          }
         }
       }
 
-      // 2. Check 'carousel_media' (RapidAPI normalized)
-      if (data['carousel_media'] is List) {
-         for (var item in data['carousel_media']) {
-           if (item is Map && item['url'] is String) {
-             uniqueUrls.add(item['url']);
-           } else if (item is String) {
-             uniqueUrls.add(item);
-           }
-        }
-      }
-
-      // 3. Check 'medias' list (RapidAPI normalized)
-      if (data['medias'] is List) {
-        for (var item in data['medias']) {
-           if (item is Map && item['url'] is String) {
-             uniqueUrls.add(item['url']);
-           } else if (item is String) {
-             uniqueUrls.add(item);
-           }
-        }
-      }
-
-      // 4. Check 'display_resources' for single post high-res
-      // Only if we haven't found anything yet, because sometimes this is just the cover of a carousel
+      // 3. Check 'display_resources' for single post high-res IMAGE
+      // Only if we haven't found anything yet (no carousel, no video)
       if (uniqueUrls.isEmpty && data['display_resources'] is List) {
-         for (var item in data['display_resources']) {
-           if (item is Map && item['src'] is String) {
-             uniqueUrls.add(item['src']);
+         final resources = data['display_resources'] as List;
+         if (resources.isNotEmpty) {
+           // Get the last one (highest resolution)
+           final lastItem = resources.last;
+           if (lastItem is Map && lastItem['src'] is String) {
+             uniqueUrls.add(lastItem['src']);
            }
-        }
+         }
       }
       
-      // 5. Fallback to single fields if nothing found
+      // 4. Fallback to single display_url if nothing found
       if (uniqueUrls.isEmpty) {
-         if (data['video_url'] is String && (data['video_url'] as String).isNotEmpty) {
-          uniqueUrls.add(data['video_url']);
-        } else if (data['display_url'] is String && (data['display_url'] as String).isNotEmpty) {
+        if (data['display_url'] is String && (data['display_url'] as String).isNotEmpty) {
           uniqueUrls.add(data['display_url']);
         }
       }
