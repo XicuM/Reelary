@@ -258,15 +258,25 @@ class PlaceProvider with ChangeNotifier {
   }
 
   bool _isValidInstagramUrl(String url) {
-    final instagramUrlPattern =
-        RegExp(r'^https?://(www\.)?instagram\.com/(p|reel|tv|stories)/[\w-]+/?');
+    if (url.isEmpty) return false;
+    final instagramUrlPattern = RegExp(
+      r'^https?://(?:[a-z0-9-]+\.)?instagram\.com/(?:[\w.]+/(?:stories/)?)?(p|reel|tv|stories)/([\w-]+)',
+      caseSensitive: false,
+    );
     return instagramUrlPattern.hasMatch(url);
   }
 
   String? _extractReelId(String url) {
-    final pattern = RegExp(r'/(p|reel|tv|stories)/([\w-]+)');
+    if (url.isEmpty) return null;
+    final pattern = RegExp(
+      r'instagram\.com/(?:[\w.]+/(?:stories/)?)?(p|reel|tv|stories)/([\w-]+)',
+      caseSensitive: false,
+    );
     final match = pattern.firstMatch(url);
-    return match?.group(2);
+    if (match != null && match.groupCount >= 2) {
+      return match.group(2);
+    }
+    return null;
   }
 
   Future<void> updatePlace(Place place) async {

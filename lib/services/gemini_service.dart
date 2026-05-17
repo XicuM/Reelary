@@ -404,4 +404,54 @@ class GeminiService {
       return 'Travel Spot';
     }
   }
+
+  Future<String> regeneratePlaceDescription({
+    required List<String> mediaPaths,
+    required String? videoPath,
+    required String currentTitle,
+    required String currentDescription,
+  }) async {
+    return _retryWithBackoff(() async {
+      final model = await _getModel();
+      
+      final prompt = '''
+      Analyze the provided media and write a brief, engaging description for this place.
+      Current Title: \$currentTitle
+      \${currentDescription.isNotEmpty ? "Current Description: \$currentDescription\\n" : ""}
+      
+      Please provide a brief description (2-3 sentences) of what's shown or mentioned.
+      Focus on the atmosphere, key features, or why someone might want to visit.
+      Do NOT include markdown formatting or JSON, just return the plain text description.
+      ''';
+
+      final List<Part> parts = [TextPart(prompt)];
+
+      if (videoPath != null && videoPath.isNotEmpty) {
+        final file = File(videoPath);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          final mimeType = _getMimeType(videoPath);
+          parts.add(DataPart(mimeType, bytes));
+        }
+      }
+
+      for (final path in mediaPaths) {
+        final file = File(path);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          final mimeType = _getMimeType(path);
+          parts.add(DataPart(mimeType, bytes));
+        }
+      }
+
+      final content = [Content.multi(parts)];
+      final response = await model.generateContent(content);
+
+      if (response.text == null) {
+        throw Exception('Failed to regenerate description');
+      }
+
+      return response.text!.trim();
+    });
+  }
 }

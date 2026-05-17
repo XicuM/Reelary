@@ -260,22 +260,10 @@ class RecipeProvider with ChangeNotifier {
   /// Validates if the provided URL is a valid Instagram URL
   bool _isValidInstagramUrl(String url) {
     if (url.isEmpty) return false;
-
-    // Check if URL contains instagram.com domain
-    if (!url.contains('instagram.com')) return false;
-
-    // Valid Instagram URL patterns:
-    // - https://www.instagram.com/p/POST_ID/
-    // - https://www.instagram.com/reel/REEL_ID/
-    // - https://www.instagram.com/tv/TV_ID/
-    // - https://instagram.com/p/POST_ID/
-    // - Can include query parameters: ?utm_source=...
-
     final instagramUrlPattern = RegExp(
-      r'^https?://(www\.)?instagram\.com/(p|reel|tv|stories)/[\w-]+/?',
+      r'^https?://(?:[a-z0-9-]+\.)?instagram\.com/(?:[\w.]+/(?:stories/)?)?(p|reel|tv|stories)/([\w-]+)',
       caseSensitive: false,
     );
-
     return instagramUrlPattern.hasMatch(url);
   }
 
@@ -339,12 +327,9 @@ class RecipeProvider with ChangeNotifier {
 
   /// Extracts the reel/post ID from an Instagram URL
   String? _extractReelId(String url) {
-    // Pattern to extract ID from URLs like:
-    // https://www.instagram.com/reel/ABC123/
-    // https://instagram.com/p/XYZ789/
-    // https://www.instagram.com/tv/DEF456/?utm_source=...
+    if (url.isEmpty) return null;
     final pattern = RegExp(
-      r'instagram\.com/(p|reel|tv|stories)/([\w-]+)',
+      r'instagram\.com/(?:[\w.]+/(?:stories/)?)?(p|reel|tv|stories)/([\w-]+)',
       caseSensitive: false,
     );
 

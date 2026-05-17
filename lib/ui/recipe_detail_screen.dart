@@ -9,6 +9,7 @@ import '../data/database_helper.dart';
 import 'video_player_screen.dart';
 import 'recipe_editor_screen.dart';
 import '../providers/recipe_provider.dart';
+import '../services/gemini_service.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
@@ -25,6 +26,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   late PageController _pageController;
   late PageController _ingredientsPageController;
   int _activePage = 0;
+  bool _isRegenerating = false;
 
   @override
   void initState() {
@@ -52,9 +54,50 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     }
   }
 
-  // ... (existing code)
+  Future<void> _regenerateRecipeWithAI() async {
+    setState(() => _isRegenerating = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Regenerating recipe with AI...')),
+    );
+    try {
+      final geminiService = GeminiService();
+      final regeneratedRecipe = await geminiService.generateRecipe(
+        mediaPaths: _currentRecipe.mediaPaths,
+        authorComment: _currentRecipe.authorComment ?? '',
+        videoUrl: _currentRecipe.videoUrl,
+      );
 
+      final updatedRecipe = _currentRecipe.copyWith(
+        title: regeneratedRecipe.title,
+        ingredients: regeneratedRecipe.ingredients,
+        variations: regeneratedRecipe.variations,
+        steps: regeneratedRecipe.steps,
+      );
 
+      await Provider.of<RecipeProvider>(context, listen: false).updateRecipe(updatedRecipe);
+      
+      await _refreshRecipe();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Recipe regenerated successfully!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to regenerate recipe: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRegenerating = false);
+      }
+    }
+  }
 
   String _buildRecipeText() {
     final buffer = StringBuffer();
@@ -159,6 +202,11 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         title: Text(_currentRecipe.title),
         actions: [
           IconButton(
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: 'Regenerate with AI',
+            onPressed: _regenerateRecipeWithAI,
+          ),
+          IconButton(
             icon: const Icon(Icons.edit),
             tooltip: 'Edit Recipe',
             onPressed: () async {
@@ -205,82 +253,95 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           ),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 900;
-          
-          if (isWide) {
-            // 2-Column Layout for Desktop/Wide Screens
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left Column: Media (Fixed Width or Flex)
-                SizedBox(
-                  width: 400, // Fixed width for media column side
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      children: [
-                         _buildMediaSection(context, colorScheme, theme),
-                         const SizedBox(height: 16),
-                         // Source link below media
-                        if (_currentRecipe.videoUrl.isNotEmpty)
-                          _buildSourceCard(context, colorScheme, theme),
-                         if (_currentRecipe.authorComment != null &&
-                            _currentRecipe.authorComment!.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                           _buildAuthorNote(context, colorScheme, theme),
-                        ],
-                      ],
+      body: Stack(
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 900;
+              
+              if (isWide) {
+                // 2-Column Layout for Desktop/Wide Screens
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Left Column: Media (Fixed Width or Flex)
+                    SizedBox(
+                      width: 400, // Fixed width for media column side
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          children: [
+                             _buildMediaSection(context, colorScheme, theme),
+                             const SizedBox(height: 16),
+                             // Source link below media
+                            if (_currentRecipe.videoUrl.isNotEmpty)
+                              _buildSourceCard(context, colorScheme, theme),
+                             if (_currentRecipe.authorComment != null &&
+                                _currentRecipe.authorComment!.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                               _buildAuthorNote(context, colorScheme, theme),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                // Vertical Divider
-                const VerticalDivider(width: 1),
-                // Right Column: Content (Expanded)
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                         _buildIngredientsSection(context, colorScheme, theme),
-                         const SizedBox(height: 32),
-                         _buildStepsSection(context, colorScheme, theme),
-                         const SizedBox(height: 32),
-                      ],
+                    // Vertical Divider
+                    const VerticalDivider(width: 1),
+                    // Right Column: Content (Expanded)
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                             _buildIngredientsSection(context, colorScheme, theme),
+                             const SizedBox(height: 32),
+                             _buildStepsSection(context, colorScheme, theme),
+                             const SizedBox(height: 32),
+                          ],
+                        ),
+                      ),
                     ),
+                  ],
+                );
+              } else {
+                // Original Single Column Layout for Mobile
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                       _buildMediaSection(context, colorScheme, theme),
+                       const SizedBox(height: 16),
+                      if (_currentRecipe.videoUrl.isNotEmpty) ...[
+                        _buildSourceCard(context, colorScheme, theme),
+                        const SizedBox(height: 24),
+                      ],
+                      _buildIngredientsSection(context, colorScheme, theme),
+                      const SizedBox(height: 32),
+                      _buildStepsSection(context, colorScheme, theme),
+                      if (_currentRecipe.authorComment != null &&
+                          _currentRecipe.authorComment!.isNotEmpty) ...[
+                        const SizedBox(height: 32),
+                        _buildAuthorNote(context, colorScheme, theme),
+                      ],
+                      const SizedBox(height: 32),
+                    ],
                   ),
+                );
+              }
+            },
+          ),
+          if (_isRegenerating)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.3),
+                child: const Center(
+                  child: CircularProgressIndicator(),
                 ),
-              ],
-            );
-          } else {
-            // Original Single Column Layout for Mobile
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                   _buildMediaSection(context, colorScheme, theme),
-                   const SizedBox(height: 16),
-                  if (_currentRecipe.videoUrl.isNotEmpty) ...[
-                    _buildSourceCard(context, colorScheme, theme),
-                    const SizedBox(height: 24),
-                  ],
-                  _buildIngredientsSection(context, colorScheme, theme),
-                  const SizedBox(height: 32),
-                  _buildStepsSection(context, colorScheme, theme),
-                  if (_currentRecipe.authorComment != null &&
-                      _currentRecipe.authorComment!.isNotEmpty) ...[
-                    const SizedBox(height: 32),
-                    _buildAuthorNote(context, colorScheme, theme),
-                  ],
-                  const SizedBox(height: 32),
-                ],
               ),
-            );
-          }
-        },
+            ),
+        ],
       ),
     );
   }

@@ -14,6 +14,7 @@ import 'place_editor_screen.dart';
 import 'place_map_screen.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../providers/place_provider.dart';
+import '../services/gemini_service.dart';
 
 class PlaceDetailScreen extends StatefulWidget {
   final Place place;
@@ -29,6 +30,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   List<PlaceTag> _tags = [];
   late PageController _pageController;
   int _activePage = 0;
+  bool _isRegenerating = false;
 
   @override
   void initState() {
@@ -283,6 +285,46 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     }
   }
 
+  Future<void> _regenerateDescriptionWithAI() async {
+    setState(() => _isRegenerating = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Regenerating description with AI...')),
+    );
+    try {
+      final geminiService = GeminiService();
+      final newDescription = await geminiService.regeneratePlaceDescription(
+        mediaPaths: _currentPlace.mediaPaths,
+        videoPath: _currentPlace.videoPath,
+        currentTitle: _currentPlace.title,
+        currentDescription: _currentPlace.description,
+      );
+
+      final updatedPlace = _currentPlace.copyWith(description: newDescription);
+      await Provider.of<PlaceProvider>(context, listen: false).updatePlace(updatedPlace);
+      
+      await _refreshPlace();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Description regenerated successfully!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to regenerate description: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRegenerating = false);
+      }
+    }
+  }
+
   String _buildPlaceText() {
     final buffer = StringBuffer();
     buffer.writeln('📍 ${_currentPlace.title}');
@@ -447,6 +489,11 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         title: Text(_currentPlace.title),
         actions: [
           IconButton(
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: 'Regenerate with AI',
+            onPressed: _regenerateDescriptionWithAI,
+          ),
+          IconButton(
             icon: const Icon(Icons.edit),
             tooltip: 'Edit Place',
             onPressed: () async {
@@ -496,75 +543,88 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           ),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 900;
-
-          if (isWide) {
-            // 2-Column Layout for Desktop/Wide Screens
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left Column: Media (Fixed Width or Flex)
-                SizedBox(
-                  width: 400, // Fixed width for media
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      children: [
-                        _buildMediaSection(context, colorScheme),
-                        const SizedBox(height: 16),
-                        _buildTagsSection(colorScheme),
-                         const SizedBox(height: 16),
-                         _buildSourceCard(context, colorScheme, theme),
-                      ],
+      body: Stack(
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 900;
+    
+              if (isWide) {
+                // 2-Column Layout for Desktop/Wide Screens
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Left Column: Media (Fixed Width or Flex)
+                    SizedBox(
+                      width: 400, // Fixed width for media
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          children: [
+                            _buildMediaSection(context, colorScheme),
+                            const SizedBox(height: 16),
+                            _buildTagsSection(colorScheme),
+                             const SizedBox(height: 16),
+                             _buildSourceCard(context, colorScheme, theme),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                // Vertical Divider
-                const VerticalDivider(width: 1),
-                // Right Column: Content (Expanded)
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (_currentPlace.description.isNotEmpty) ...[
-                          _buildDescriptionSection(theme),
-                          const SizedBox(height: 24),
-                        ],
-                        _buildLocationsSection(context, theme, colorScheme),
-                      ],
+                    // Vertical Divider
+                    const VerticalDivider(width: 1),
+                    // Right Column: Content (Expanded)
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_currentPlace.description.isNotEmpty) ...[
+                              _buildDescriptionSection(theme),
+                              const SizedBox(height: 24),
+                            ],
+                            _buildLocationsSection(context, theme, colorScheme),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ],
-            );
-          } else {
-            // Standard Single Column Layout
-            return SingleChildScrollView(
-               padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                   _buildMediaSection(context, colorScheme),
-                   const SizedBox(height: 16),
-                   _buildTagsSection(colorScheme),
-                   const SizedBox(height: 16),
-                   _buildSourceCard(context, colorScheme, theme),
-                   const SizedBox(height: 24),
-                  if (_currentPlace.description.isNotEmpty) ...[
-                     _buildDescriptionSection(theme),
-                     const SizedBox(height: 24),
                   ],
-                  _buildLocationsSection(context, theme, colorScheme),
-                  const SizedBox(height: 32),
-                ],
+                );
+              } else {
+                // Standard Single Column Layout
+                return SingleChildScrollView(
+                   padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                       _buildMediaSection(context, colorScheme),
+                       const SizedBox(height: 16),
+                       _buildTagsSection(colorScheme),
+                       const SizedBox(height: 16),
+                       _buildSourceCard(context, colorScheme, theme),
+                       const SizedBox(height: 24),
+                      if (_currentPlace.description.isNotEmpty) ...[
+                         _buildDescriptionSection(theme),
+                         const SizedBox(height: 24),
+                      ],
+                      _buildLocationsSection(context, theme, colorScheme),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                );
+              }
+            },
+          ),
+          if (_isRegenerating)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.3),
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
               ),
-            );
-          }
-        },
+            ),
+        ],
       ),
     );
   }

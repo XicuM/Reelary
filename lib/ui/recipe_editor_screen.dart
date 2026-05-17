@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/recipe.dart';
 import '../providers/recipe_provider.dart';
+import '../services/gemini_service.dart';
 
 class RecipeEditorScreen extends StatefulWidget {
   final Recipe recipe;
@@ -20,6 +21,7 @@ class _RecipeEditorScreenState extends State<RecipeEditorScreen> {
   late List<String> _steps;
   int _currentVariationIndex = 0;
   bool _isSaving = false;
+  bool _isRegenerating = false;
 
   @override
   void initState() {
@@ -51,6 +53,61 @@ class _RecipeEditorScreenState extends State<RecipeEditorScreen> {
     _titleController.dispose();
     _authorCommentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _regenerateRecipeWithAI() async {
+    setState(() => _isRegenerating = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Regenerating recipe with AI...')),
+    );
+    try {
+      final geminiService = GeminiService();
+      final regenerated = await geminiService.generateRecipe(
+        mediaPaths: widget.recipe.mediaPaths,
+        authorComment: _authorCommentController.text.trim(),
+        videoUrl: widget.recipe.videoUrl,
+      );
+
+      setState(() {
+        _titleController.text = regenerated.title;
+        _steps = List.from(regenerated.steps);
+        _authorCommentController.text = regenerated.authorComment ?? '';
+        
+        if (regenerated.variations.isNotEmpty) {
+          _variations = regenerated.variations.map((v) => RecipeVariation(
+            name: v.name,
+            ingredients: List.from(v.ingredients),
+          )).toList();
+        } else {
+          _variations = [
+            RecipeVariation(
+              name: 'Original',
+              ingredients: List.from(regenerated.ingredients),
+            )
+          ];
+        }
+        _currentVariationIndex = 0;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Recipe regenerated with AI successfully!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to regenerate: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRegenerating = false);
+      }
+    }
   }
 
   Future<void> _saveRecipe() async {
@@ -153,15 +210,21 @@ class _RecipeEditorScreenState extends State<RecipeEditorScreen> {
       appBar: AppBar(
         title: const Text('Edit Recipe'),
         actions: [
-          if (!_isSaving)
+          if (!_isSaving && !_isRegenerating) ...[
+            IconButton(
+              icon: const Icon(Icons.auto_awesome),
+              tooltip: 'Regenerate with AI',
+              onPressed: _regenerateRecipeWithAI,
+            ),
             IconButton(
               icon: const Icon(Icons.check),
               onPressed: _saveRecipe,
               tooltip: 'Save',
             ),
+          ],
         ],
       ),
-      body: _isSaving
+      body: (_isSaving || _isRegenerating)
           ? const Center(child: CircularProgressIndicator())
           : Form(
               key: _formKey,

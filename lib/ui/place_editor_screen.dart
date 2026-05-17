@@ -5,6 +5,7 @@ import '../models/location.dart';
 import '../models/tag.dart';
 import '../providers/place_provider.dart';
 import '../data/database_helper.dart';
+import '../services/gemini_service.dart';
 
 class PlaceEditorScreen extends StatefulWidget {
   final Place place;
@@ -24,6 +25,7 @@ class _PlaceEditorScreenState extends State<PlaceEditorScreen> {
   late Set<int> _selectedTagIds;
   List<PlaceTag> _availableTags = [];
   bool _isSaving = false;
+  bool _isRegeneratingDescription = false;
 
   @override
   void initState() {
@@ -49,6 +51,42 @@ class _PlaceEditorScreenState extends State<PlaceEditorScreen> {
       setState(() {
         _availableTags = tags;
       });
+    }
+  }
+
+  Future<void> _regenerateDescription() async {
+    setState(() => _isRegeneratingDescription = true);
+    try {
+      final geminiService = GeminiService();
+      final newDescription = await geminiService.regeneratePlaceDescription(
+        mediaPaths: widget.place.mediaPaths,
+        videoPath: widget.place.videoPath,
+        currentTitle: _titleController.text.trim().isEmpty 
+            ? widget.place.title 
+            : _titleController.text.trim(),
+        currentDescription: _descriptionController.text.trim(),
+      );
+      if (mounted) {
+        setState(() {
+          _descriptionController.text = newDescription;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Description regenerated successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to regenerate: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRegeneratingDescription = false);
+      }
     }
   }
 
@@ -207,15 +245,21 @@ class _PlaceEditorScreenState extends State<PlaceEditorScreen> {
       appBar: AppBar(
         title: const Text('Edit Place'),
         actions: [
-          if (!_isSaving)
+          if (!_isSaving) ...[
+            IconButton(
+              icon: const Icon(Icons.auto_awesome),
+              tooltip: 'Regenerate with AI',
+              onPressed: _regenerateDescription,
+            ),
             IconButton(
               icon: const Icon(Icons.check),
               onPressed: _savePlace,
               tooltip: 'Save',
             ),
+          ],
         ],
       ),
-      body: _isSaving
+      body: (_isSaving || _isRegeneratingDescription)
           ? const Center(child: CircularProgressIndicator())
           : Form(
               key: _formKey,
@@ -241,13 +285,38 @@ class _PlaceEditorScreenState extends State<PlaceEditorScreen> {
                   const SizedBox(height: 16),
 
                   // Description
-                  TextFormField(
-                    controller: _descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
-                      prefixIcon: Icon(Icons.description),
-                    ),
-                    maxLines: 3,
+                  Stack(
+                    alignment: Alignment.centerRight,
+                    children: [
+                      TextFormField(
+                        controller: _descriptionController,
+                        decoration: const InputDecoration(
+                          labelText: 'Description',
+                          prefixIcon: Icon(Icons.description),
+                          contentPadding: EdgeInsets.only(right: 48, top: 16, bottom: 16, left: 16),
+                        ),
+                        maxLines: 3,
+                      ),
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: _isRegeneratingDescription
+                            ? const Padding(
+                                padding: EdgeInsets.all(12.0),
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              )
+                            : IconButton(
+                                icon: const Icon(Icons.auto_awesome),
+                                tooltip: 'Regenerate with AI',
+                                onPressed: _regenerateDescription,
+                                color: colorScheme.primary,
+                              ),
+                      ),
+                    ],
                   ),
 
                   const SizedBox(height: 16),

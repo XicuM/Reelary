@@ -5,7 +5,7 @@ void main() {
   group('URL Extraction Logic', () {
     String? extractUrl(String text) {
       final RegExp urlRegExp = RegExp(
-        r'https?://(www\.)?instagram\.com/(p|reel|tv|stories)/[\w-]+/?',
+        r'https?://(?:[a-z0-9-]+\.)?instagram\.com/(?:[\w.]+/(?:stories/)?)?(p|reel|tv|stories)/[\w-]+/?',
         caseSensitive: false,
       );
       final match = urlRegExp.firstMatch(text);
@@ -15,6 +15,11 @@ void main() {
     test('extracts clean URL', () {
       const text = 'https://www.instagram.com/reel/C12345/';
       expect(extractUrl(text), 'https://www.instagram.com/reel/C12345/');
+    });
+
+    test('extracts URL with username/handle', () {
+      const text = 'https://www.instagram.com/viajandoenruta_/reel/DYE2MddMz6i/';
+      expect(extractUrl(text), 'https://www.instagram.com/viajandoenruta_/reel/DYE2MddMz6i/');
     });
 
     test('extracts URL with prefix text', () {
