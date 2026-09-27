@@ -622,7 +622,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       ),
                     ),
                     Text(
-                      'Instagram Reel',
+                      _currentRecipe.videoUrl.contains('tiktok.com') ? 'TikTok Video' : 'Instagram Reel',
                       style:
                           theme.textTheme.bodyMedium?.copyWith(
                         color: colorScheme.onSurface,

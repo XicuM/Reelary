@@ -485,7 +485,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Add your first recipe from Instagram!',
+                          'Add your first recipe from Instagram or TikTok!',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: colorScheme.outline,
                           ),

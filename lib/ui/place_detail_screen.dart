@@ -659,7 +659,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     return Card(
       child: ListTile(
         leading: const Icon(Icons.link),
-        title: const Text('Instagram Source'),
+        title: const Text('Source'),
         subtitle: Text(
           _currentPlace.videoUrl,
           maxLines: 1,

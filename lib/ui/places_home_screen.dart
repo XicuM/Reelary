@@ -617,7 +617,7 @@ class _PlacesHomeScreenState extends State<PlacesHomeScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Add your first place from Instagram!',
+                          'Add your first place from Instagram or TikTok!',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: colorScheme.outline,
                           ),

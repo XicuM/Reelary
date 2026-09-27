@@ -5,7 +5,7 @@ import '../models/folder.dart';
 import '../models/tag.dart';
 import '../data/database_helper.dart';
 import '../services/gemini_service.dart';
-import '../services/instagram_service.dart';
+import '../services/media_service.dart';
 import '../services/geocoding_service.dart';
 import '../services/video_service.dart';
 import '../models/location.dart';
@@ -30,7 +30,7 @@ class PlaceProvider with ChangeNotifier {
   String? get error => _error;
 
   final GeminiService _geminiService = GeminiService();
-  final InstagramService _instagramService = InstagramService();
+  final MediaService _mediaService = MediaService();
   final VideoService _videoService = VideoService();
   final GeocodingService _geocodingService = GeocodingService();
 
@@ -126,16 +126,10 @@ class PlaceProvider with ChangeNotifier {
     bgService.updateNotification(title: 'Processing Place', content: 'Initializing...', showProgress: true, progress: 0);
 
     try {
-      // Validate Instagram URL format
-      if (!_isValidInstagramUrl(url)) {
-        throw Exception(
-            'Invalid Instagram URL. Please provide a valid Instagram post, reel, or story URL.\nExample: https://www.instagram.com/reel/ABC123/');
-      }
-
-      // Extract reel ID from URL
-      final reelId = _extractReelId(url);
+      // Validate URL and extract post ID (Instagram or TikTok)
+      final reelId = MediaService.extractPostId(url);
       if (reelId == null) {
-        throw Exception('Could not extract reel ID from URL');
+        throw Exception(MediaService.invalidUrlMessage);
       }
 
       // Check if place already exists
@@ -146,14 +140,14 @@ class PlaceProvider with ChangeNotifier {
 
       // Check network connectivity first
       bgService.updateNotification(title: 'Processing Place', content: 'Checking connection...', showProgress: true, progress: 10);
-      final hasNetwork = await _instagramService.isNetworkAvailable();
+      final hasNetwork = await _mediaService.isNetworkAvailable();
       if (!hasNetwork) {
         throw Exception('No internet connection');
       }
 
       // 1. Download media (video or images)
       bgService.updateNotification(title: 'Processing Place', content: 'Downloading media...', showProgress: true, progress: 30);
-      final mediaPaths = await _instagramService.downloadInstagramPost(url);
+      final mediaPaths = await _mediaService.downloadPost(url);
       
       if (mediaPaths.isEmpty) {
         throw Exception('No media found in post');
@@ -257,27 +251,7 @@ class PlaceProvider with ChangeNotifier {
     }
   }
 
-  bool _isValidInstagramUrl(String url) {
-    if (url.isEmpty) return false;
-    final instagramUrlPattern = RegExp(
-      r'^https?://(?:[a-z0-9-]+\.)?instagram\.com/(?:[\w.]+/(?:stories/)?)?(p|reel|tv|stories)/([\w-]+)',
-      caseSensitive: false,
-    );
-    return instagramUrlPattern.hasMatch(url);
-  }
 
-  String? _extractReelId(String url) {
-    if (url.isEmpty) return null;
-    final pattern = RegExp(
-      r'instagram\.com/(?:[\w.]+/(?:stories/)?)?(p|reel|tv|stories)/([\w-]+)',
-      caseSensitive: false,
-    );
-    final match = pattern.firstMatch(url);
-    if (match != null && match.groupCount >= 2) {
-      return match.group(2);
-    }
-    return null;
-  }
 
   Future<void> updatePlace(Place place) async {
     try {
@@ -447,13 +421,13 @@ class PlaceProvider with ChangeNotifier {
       final place = _places.firstWhere((p) => p.id == id);
       
       // Check network
-      final hasNetwork = await _instagramService.isNetworkAvailable();
+      final hasNetwork = await _mediaService.isNetworkAvailable();
       if (!hasNetwork) {
         throw Exception('No internet connection');
       }
 
       // Download video
-      final videoPath = await _instagramService.downloadInstagramVideo(place.videoUrl);
+      final videoPath = (await _mediaService.downloadPost(place.videoUrl)).first;
       
       // Generate thumbnail
       final thumbnailPath = await _videoService.generateThumbnail(videoPath);

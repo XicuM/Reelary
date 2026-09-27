@@ -11,6 +11,7 @@ import '../providers/recipe_provider.dart';
 import 'home_screen.dart';
 import 'places_home_screen.dart';
 import 'settings_screen.dart';
+import '../services/media_service.dart';
 import '../services/settings_service.dart';
 
 class MainNavScreen extends StatefulWidget {
@@ -77,12 +78,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
   }
 
   String? _extractUrl(String text) {
-    final RegExp urlRegExp = RegExp(
-      r'https?://(www\.)?instagram\.com/(p|reel|tv|stories)/[\w-]+/?',
-      caseSensitive: false,
-    );
-    final match = urlRegExp.firstMatch(text);
-    return match?.group(0);
+    return MediaService.urlPattern.firstMatch(text)?.group(0);
   }
 
   Future<void> _checkApiKeys() async {
@@ -139,15 +135,15 @@ class _MainNavScreenState extends State<MainNavScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add from Instagram'),
+        title: const Text('Add from Instagram or TikTok'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _urlController,
               decoration: const InputDecoration(
-                labelText: 'Instagram URL',
-                hintText: 'https://www.instagram.com/reel/...',
+                labelText: 'Instagram or TikTok URL',
+                hintText: 'https://www.instagram.com/reel/... or tiktok.com/...',
                 prefixIcon: Icon(Icons.link),
                 border: OutlineInputBorder(),
               ),
@@ -156,7 +152,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
             ),
             const SizedBox(height: 16),
             const Text(
-              'Paste an Instagram reel or post URL to extract the content.',
+              'Paste an Instagram reel/post or TikTok video URL to extract the content.',
               style: TextStyle(fontSize: 12),
             ),
           ],
@@ -257,7 +253,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
       body: _screens[_selectedIndex],
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddUrlDialog,
-        tooltip: 'Add recipe or place from Instagram',
+        tooltip: 'Add recipe or place from Instagram or TikTok',
         child: const Icon(Icons.add),
       ),
       bottomNavigationBar: NavigationBar(

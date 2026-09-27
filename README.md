@@ -2,15 +2,15 @@
 
 ![](assets/cover.png)
 
-Reelary is a Flutter app to extract recipes and places from Instagram Reels using Gemini API, with Material Design 3 UI and folder-based organization.
+Reelary is a Flutter app to extract recipes and places from Instagram Reels and TikTok videos using Gemini API, with Material Design 3 UI and folder-based organization.
 
 > [!CAUTION]
 > **DISCLAIMER: DEMONSTRATION PURPOSES ONLY**
-> This application is strictly for educational and demonstration purposes. It is **NOT** intended to be run or distributed as it may infringe on Instagram's Terms of Use. Use at your own risk.
+> This application is strictly for educational and demonstration purposes. It is **NOT** intended to be run or distributed as it may infringe on Instagram's and TikTok's Terms of Use. Use at your own risk.
 
 ## ✨ Features
 
-- 📱 **Extract Recipes & Places**: Convert Instagram Reels into structured recipes or place recommendations
+- 📱 **Extract Recipes & Places**: Convert Instagram Reels and TikTok videos into structured recipes or place recommendations
 - 🗺️ **Interactive Maps**: View locations on Google Maps with markers and navigation
 - 🏷️ **Smart Categorization**: Automatic AI tagging for places (Restaurant, Travel Spot, Activities, Nature)
 - 📁 **Folder Organization**: Organize recipes and places with customizable emoji folders
@@ -25,6 +25,8 @@ Reelary is a Flutter app to extract recipes and places from Instagram Reels usin
 ### Prerequisites
 
 **Required:** RapidAPI Instagram Downloader API - For downloading Instagram videos cross-platform
+
+**TikTok:** No key needed — downloaded via the free [tikwm.com](https://www.tikwm.com) API (rate-limited to ~1 request/second)
 
 ### App Setup
 
@@ -95,7 +97,7 @@ Reelary is a Flutter app to extract recipes and places from Instagram Reels usin
 ## How to Use
 
 ### Recipes
--   **Share to App**: Share an Instagram Reel directly to Reelary
+-   **Share to App**: Share an Instagram Reel or TikTok video directly to Reelary
 -   **Paste URL**: Manually paste a Reel URL
 -   **Gemini Extraction**: Uses Gemini 2.0 Flash to analyze the video and extract ingredients and steps
 -   **Recipe Storage**: Saves recipes locally with interactive cooking mode

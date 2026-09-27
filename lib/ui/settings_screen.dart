@@ -245,7 +245,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             const SizedBox(height: 12),
                             _buildInstruction('1', 'Gemini API: Visit ai.google.dev/gemini-api'),
                             const SizedBox(height: 8),
-                            _buildInstruction('2', 'RapidAPI: Visit rapidapi.com and subscribe to Instagram API'),
+                            _buildInstruction('2', 'RapidAPI: Visit rapidapi.com and subscribe to Instagram API (TikTok needs no key)'),
                             const SizedBox(height: 8),
                             _buildInstruction('3', 'Copy your keys and paste them above'),
                           ],

@@ -321,18 +321,18 @@ class _PlaceEditorScreenState extends State<PlaceEditorScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Video URL (Instagram Source)
+                  // Video URL (Instagram/TikTok source)
                   TextFormField(
                     controller: _videoUrlController,
                     decoration: const InputDecoration(
-                      labelText: 'Instagram Source URL',
+                      labelText: 'Source URL',
                       prefixIcon: Icon(Icons.link),
                       hintText: 'https://www.instagram.com/reel/...',
                     ),
                     keyboardType: TextInputType.url,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return 'Instagram URL is required';
+                        return 'Source URL is required';
                       }
                       return null;
                     },

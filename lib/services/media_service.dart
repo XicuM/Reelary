@@ -6,12 +6,33 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'settings_service.dart';
 
-class InstagramService {
-  
+/// Downloads media from Instagram (via RapidAPI) and TikTok (via tikwm.com).
+class MediaService {
+  /// Matches a supported post URL. The post ID is in the first non-null group.
+  /// Instagram: /p/, /reel/, /tv/, /stories/ (optionally prefixed by a username).
+  /// TikTok: `/@user/video/{id}`, `/@user/photo/{id}`, and vm./vt./tiktok.com/t/ short links.
+  static final RegExp urlPattern = RegExp(
+    r'https?://(?:[a-z0-9-]+\.)?instagram\.com/(?:[\w.]+/(?:stories/)?)?(?:p|reels?|tv|stories)/([\w-]+)/?'
+    r'|https?://(?:[a-z0-9-]+\.)?tiktok\.com/@[\w.-]+/(?:video|photo)/(\d+)/?'
+    r'|https?://(?:(?:vm|vt)\.tiktok\.com|(?:www\.)?tiktok\.com/t)/([\w-]+)/?',
+    caseSensitive: false,
+  );
+
+  /// Returns the post ID for a supported Instagram/TikTok URL, or null.
+  static String? extractPostId(String url) {
+    final match = urlPattern.firstMatch(url);
+    if (match == null) return null;
+    return match.group(1) ?? match.group(2) ?? match.group(3);
+  }
+
+  static const String invalidUrlMessage =
+      'Invalid URL. Please provide an Instagram post/reel or a TikTok video URL.\n'
+      'Example: https://www.instagram.com/reel/ABC123/ or https://www.tiktok.com/@user/video/123';
+
   final http.Client _client;
 
-  InstagramService({http.Client? client}) : _client = client ?? http.Client();
-  
+  MediaService({http.Client? client}) : _client = client ?? http.Client();
+
   Future<String> _getRapidApiKey() async {
     return await SettingsService.getEffectiveRapidApiKey() ?? '';
   }
@@ -20,17 +41,20 @@ class InstagramService {
       dotenv.env['RAPIDAPI_HOST'] ?? 'instagram-looter2.p.rapidapi.com';
   String get _endpoint => dotenv.env['INSTAGRAM_POST_INFO_ENDPOINT'] ?? '/post';
 
-  Future<List<String>> downloadInstagramPost(String instagramUrl) async {
+  /// Downloads all media of an Instagram or TikTok post and returns local paths.
+  Future<List<String>> downloadPost(String postUrl) async {
     try {
-      // Validate Instagram URL
-      if (!instagramUrl.contains('instagram.com')) {
-        throw Exception('Invalid Instagram URL');
+      debugPrint('Fetching post info: $postUrl');
+
+      // Step 1: Get media URLs
+      final List<String> mediaUrls;
+      if (postUrl.toLowerCase().contains('tiktok.com')) {
+        mediaUrls = await _getTikTokMediaUrls(postUrl);
+      } else if (postUrl.toLowerCase().contains('instagram.com')) {
+        mediaUrls = await _getMediaUrlsFromApi(postUrl);
+      } else {
+        throw Exception(invalidUrlMessage);
       }
-
-      debugPrint('Fetching post info from RapidAPI: $instagramUrl');
-
-      // Step 1: Get media URLs from RapidAPI
-      final mediaUrls = await _getMediaUrlsFromApi(instagramUrl);
 
       // Step 2: Download the files
       final List<String> downloadedPaths = [];
@@ -42,18 +66,38 @@ class InstagramService {
       debugPrint('Downloaded ${downloadedPaths.length} files successfully.');
       return downloadedPaths;
     } catch (e) {
-      debugPrint('Error downloading Instagram post: $e');
+      debugPrint('Error downloading post: $e');
       rethrow;
     }
   }
 
-  // Deprecated: kept for backward compatibility if needed, but redirects to new method
-  Future<String> downloadInstagramVideo(String instagramUrl) async {
-    final paths = await downloadInstagramPost(instagramUrl);
-    if (paths.isNotEmpty) {
-      return paths.first;
+  /// Fetches media URLs from the free tikwm.com API (no key required).
+  /// Returns the HD video for video posts, or all images for photo slideshows.
+  Future<List<String>> _getTikTokMediaUrls(String tiktokUrl) async {
+    final uri = Uri.parse('https://www.tikwm.com/api/')
+        .replace(queryParameters: {'url': tiktokUrl, 'hd': '1'});
+    final response = await _client.get(uri);
+
+    if (response.statusCode != 200) {
+      throw Exception(
+          'TikTok API request failed: ${response.statusCode} - ${response.body}');
     }
-    throw Exception('No media found');
+
+    final body = json.decode(response.body) as Map<String, dynamic>;
+    if (body['code'] != 0 || body['data'] is! Map) {
+      throw Exception('TikTok API error: ${body['msg'] ?? response.body}');
+    }
+    final data = body['data'] as Map<String, dynamic>;
+
+    if (data['images'] is List && (data['images'] as List).isNotEmpty) {
+      return (data['images'] as List).whereType<String>().toList();
+    }
+    for (final key in ['hdplay', 'play']) {
+      if (data[key] is String && (data[key] as String).isNotEmpty) {
+        return [data[key] as String];
+      }
+    }
+    throw Exception('No media URLs found in TikTok API response.');
   }
 
   /// Fetches media URLs from RapidAPI Instagram Downloader
@@ -214,12 +258,6 @@ class InstagramService {
         await downloadsDir.create(recursive: true);
       }
 
-      // Generate a unique filename with timestamp
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final extension = url.contains('.mp4') ? '.mp4' : '.jpg';
-      final filename = 'video_$timestamp$extension';
-      final filePath = '${downloadsDir.path}/$filename';
-
       debugPrint('Downloading file from: $url');
 
       // Download the file
@@ -234,6 +272,15 @@ class InstagramService {
       if (response.statusCode != 200) {
         throw Exception('Failed to download file: ${response.statusCode}');
       }
+
+      // Generate a unique filename with timestamp. CDN URLs (e.g. TikTok) often
+      // lack a file extension, so fall back to the response content type.
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final isVideo = url.contains('.mp4') ||
+          (response.headers['content-type'] ?? '').startsWith('video/');
+      final extension = isVideo ? '.mp4' : '.jpg';
+      final filename = 'video_$timestamp$extension';
+      final filePath = '${downloadsDir.path}/$filename';
 
       // Save to file
       final file = File(filePath);
