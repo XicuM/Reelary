@@ -32,6 +32,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   void initState() {
     super.initState();
     _currentRecipe = widget.recipe;
+    _completedSteps.addAll(widget.recipe.completedSteps);
     _pageController = PageController();
     _ingredientsPageController = PageController();
   }
@@ -49,6 +50,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       if (updated != null && mounted) {
         setState(() {
           _currentRecipe = updated;
+          _completedSteps
+            ..clear()
+            ..addAll(updated.completedSteps.where((index) => index >= 0 && index < updated.steps.length));
         });
       }
     }
@@ -72,8 +76,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         ingredients: regeneratedRecipe.ingredients,
         variations: regeneratedRecipe.variations,
         steps: regeneratedRecipe.steps,
+        completedSteps: const [],
       );
 
+      if (!mounted) return;
       await Provider.of<RecipeProvider>(context, listen: false).updateRecipe(updatedRecipe);
       
       await _refreshRecipe();
@@ -123,14 +129,16 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     try {
       final text = _buildRecipeText();
       final filesToShare = <XFile>[];
-      
-      if (_currentRecipe.videoPath != null &&
+
+      if (includeVideo &&
+          _currentRecipe.videoPath != null &&
           _currentRecipe.videoPath!.isNotEmpty &&
           File(_currentRecipe.videoPath!).existsSync()) {
         filesToShare.add(XFile(_currentRecipe.videoPath!));
-      } else if (_currentRecipe.screenshotPath != null &&
-                 _currentRecipe.screenshotPath!.isNotEmpty &&
-                 File(_currentRecipe.screenshotPath!).existsSync()) {
+      } else if (includeVideo &&
+          _currentRecipe.screenshotPath != null &&
+          _currentRecipe.screenshotPath!.isNotEmpty &&
+          File(_currentRecipe.screenshotPath!).existsSync()) {
         filesToShare.add(XFile(_currentRecipe.screenshotPath!));
       }
       
@@ -182,7 +190,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     }
   }
 
-  void _toggleStep(int index) {
+  Future<void> _toggleStep(int index) async {
     setState(() {
       if (_completedSteps.contains(index)) {
         _completedSteps.remove(index);
@@ -190,6 +198,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         _completedSteps.add(index);
       }
     });
+    final updated = _currentRecipe.copyWith(completedSteps: _completedSteps.toList()..sort());
+    _currentRecipe = updated;
+    if (!mounted) return;
+    await Provider.of<RecipeProvider>(context, listen: false).updateRecipe(updated);
   }
 
   @override
@@ -227,7 +239,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             tooltip: 'Share Recipe',
             onSelected: (String value) async {
               if (value == 'share') {
-                await _shareRecipe(false);
+                await _shareRecipe(true);
               } else if (value == 'copy') {
                 await _copyToClipboard();
               }

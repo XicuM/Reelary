@@ -30,6 +30,12 @@ void main() {
       expect(newRecipe.steps.length, 2);
       expect(newRecipe.dateCreated, recipe.dateCreated);
       expect(newRecipe.folderId, recipe.folderId);
+      expect(newRecipe.completedSteps, isEmpty);
+
+      final cooked = recipe.copyWith(completedSteps: [0, 1], folderId: null);
+      final cookedAgain = Recipe.fromMap(cooked.toMap());
+      expect(cookedAgain.completedSteps, [0, 1]);
+      expect(cookedAgain.folderId, isNull);
     });
 
     test('Recipe.copyWith should return a new instance with updated fields', () {

@@ -91,11 +91,11 @@ class Place {
     List<Location>? locations,
     String? description,
     DateTime? dateCreated,
-    int? folderId,
     String? reelId,
     List<int>? tagIds,
     Uint8List? thumbnailData,
     List<String>? mediaPaths,
+    Object? folderId = _keepFolder,
   }) {
     return Place(
       id: id ?? this.id,
@@ -106,7 +106,7 @@ class Place {
       locations: locations ?? this.locations,
       description: description ?? this.description,
       dateCreated: dateCreated ?? this.dateCreated,
-      folderId: folderId ?? this.folderId,
+      folderId: identical(folderId, _keepFolder) ? this.folderId : folderId as int?,
       reelId: reelId ?? this.reelId,
       tagIds: tagIds ?? this.tagIds,
       thumbnailData: thumbnailData ?? this.thumbnailData,
@@ -114,3 +114,5 @@ class Place {
     );
   }
 }
+
+const Object _keepFolder = Object();

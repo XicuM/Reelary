@@ -1,6 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'dart:io';
-import 'package:flutter/material.dart';
 import '../models/recipe.dart';
 import '../models/folder.dart';
 import '../data/database_helper.dart';
@@ -12,13 +10,11 @@ import '../services/background_processing_service.dart';
 class RecipeProvider with ChangeNotifier {
   List<Recipe> _recipes = [];
   List<RecipeFolder> _folders = [];
-  int? _selectedFolderId;
   bool _isLoading = false;
   String? _error;
 
   List<Recipe> get recipes => _recipes;
   List<RecipeFolder> get folders => _folders;
-  int? get selectedFolderId => _selectedFolderId;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -31,18 +27,9 @@ class RecipeProvider with ChangeNotifier {
     loadFolders();
   }
 
-  void selectFolder(int? folderId) {
-    _selectedFolderId = folderId;
-    loadRecipes();
-  }
-
   Future<void> loadFolders() async {
     try {
-      final allFolders = await DatabaseHelper.instance.readAllFolders();
-      _folders = allFolders.where((folder) => 
-        folder.entryType == FolderEntryType.recipe || 
-        folder.entryType == FolderEntryType.both
-      ).toList();
+      _folders = await DatabaseHelper.instance.readAllFolders();
       notifyListeners();
     } catch (e) {
       _error = e.toString();
@@ -50,11 +37,14 @@ class RecipeProvider with ChangeNotifier {
     }
   }
 
-  Future<void> loadRecipes() async {
-    _isLoading = true;
-    notifyListeners();
+  Future<void> loadRecipes({bool silent = false}) async {
+    if (!silent) {
+      _isLoading = true;
+      notifyListeners();
+    }
     try {
-      _recipes = await DatabaseHelper.instance.readRecipesByFolder(_selectedFolderId);
+      _recipes = await DatabaseHelper.instance.readAllRecipes();
+      _error = null;
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -63,121 +53,44 @@ class RecipeProvider with ChangeNotifier {
     }
   }
 
-  Future<void> addRecipeFromUrl(String url) async {
-    // Non-blocking loading state - we don't set _isLoading globally to avoid blocking UI
-    // The BackgroundProcessingService will handle notifications
-    _error = null;
-    notifyListeners();
+  /// Saves a recipe from media that has already been downloaded.
+  Future<void> savePrepared({
+    required String url,
+    required String reelId,
+    required List<String> mediaPaths,
+    required String mainMediaPath,
+    required bool isVideo,
+    required String? thumbnailPath,
+    required Uint8List? thumbnailData,
+    int? folderId,
+  }) async {
+    BackgroundProcessingService().updateNotification(
+      title: 'Saving post',
+      content: 'Analyzing with AI...',
+      showProgress: true,
+      progress: 70,
+    );
+    final recipe = await _geminiService.generateRecipe(
+      mediaPaths: mediaPaths,
+      authorComment: '',
+      videoUrl: url,
+    );
 
-    final bgService = BackgroundProcessingService();
-    await bgService.startService();
-    bgService.updateNotification(title: 'Processing Recipe', content: 'Initializing...', showProgress: true, progress: 0);
-
-    try {
-      // Validate URL and extract post ID (Instagram or TikTok)
-      final reelId = MediaService.extractPostId(url);
-      if (reelId == null) {
-        throw Exception(MediaService.invalidUrlMessage);
-      }
-
-      // Check if recipe already exists
-      final exists = await DatabaseHelper.instance.recipeExistsByReelId(reelId);
-      if (exists) {
-        throw Exception('This recipe has already been added!');
-      }
-
-      // Check network connectivity first
-      bgService.updateNotification(title: 'Processing Recipe', content: 'Checking connection...', showProgress: true, progress: 10);
-      final hasNetwork = await _mediaService.isNetworkAvailable();
-      if (!hasNetwork) {
-        throw Exception('No internet connection');
-      }
-
-      // 1. Download media (video or images)
-      bgService.updateNotification(title: 'Processing Recipe', content: 'Downloading media...', showProgress: true, progress: 30);
-      final mediaPaths = await _mediaService.downloadPost(url);
-      
-      if (mediaPaths.isEmpty) {
-        throw Exception('No media found in post');
-      }
-
-      final mainMediaPath = mediaPaths.first;
-      // Determine if main media is video based on extension
-      final isVideo = mainMediaPath.toLowerCase().endsWith('.mp4');
-
-      // 2. Generate thumbnail (from video or use image)
-      bgService.updateNotification(title: 'Processing Recipe', content: 'Generating thumbnail...', showProgress: true, progress: 50);
-      
-      String? thumbnailPath;
-      if (isVideo) {
-         thumbnailPath = await _videoService.generateThumbnail(mainMediaPath);
-      } else {
-        // For images, the image itself can be the thumbnail/screenshot
-        thumbnailPath = mainMediaPath;
-      }
-
-      // 3. Generate Recipe using Gemini
-      bgService.updateNotification(title: 'Processing Recipe', content: 'Analyzing with AI...', showProgress: true, progress: 70);
-      Recipe recipe = await _geminiService.generateRecipe(
-        mediaPaths: mediaPaths,
-        authorComment: '', 
-        videoUrl: url,
-      );
-
-      // 4. Get thumbnail bytes
-      bgService.updateNotification(title: 'Processing Recipe', content: 'Finalizing...', showProgress: true, progress: 90);
-      Uint8List? thumbnailData;
-      if (thumbnailPath != null) {
-        if (isVideo) {
-           thumbnailData = await _videoService.getThumbnailData(thumbnailPath);
-        } else {
-           // For images, we might want to read bytes directly or resizing logic if needed
-           // For now, assuming getThumbnailData handles generic image paths or we read file
-           final file = File(thumbnailPath);
-           if (await file.exists()) {
-             thumbnailData = await file.readAsBytes();
-           }
-        }
-      }
-
-      // 5. Add metadata to recipe before saving
-      final recipeWithMetadata = recipe.copyWith(
-        reelId: reelId,
-        screenshotPath: thumbnailPath,
-        videoPath: isVideo ? mainMediaPath : null, // keep videoPath null if it's an image
-        thumbnailData: thumbnailData,
-        mediaPaths: mediaPaths,
-      );
-
-      // 6. Save recipe to DB
-      await DatabaseHelper.instance.create(recipeWithMetadata);
-
-      // Refresh list
-      await loadRecipes();
-
-      _error = null;
-      bgService.updateNotification(title: 'Recipe Added', content: 'Successfully processed!', showProgress: false);
-      // Wait a moment for the user to see "Success" then stop
-      await Future.delayed(const Duration(seconds: 3));
-      await bgService.stopService();
-
-    } catch (e) {
-      _error = e.toString();
-      bgService.updateNotification(title: 'Error Processing Recipe', content: e.toString(), showProgress: false);
-      debugPrint('Error in addRecipeFromUrl: $e');
-      // Wait for user to see error?
-      await Future.delayed(const Duration(seconds: 5));
-      await bgService.stopService();
-    } finally {
-      // _isLoading = false; // Intentionally removed to prevent UI blocking
-      notifyListeners();
-    }
+    await DatabaseHelper.instance.create(recipe.copyWith(
+      reelId: reelId,
+      screenshotPath: thumbnailPath,
+      videoPath: isVideo ? mainMediaPath : null,
+      thumbnailData: thumbnailData,
+      mediaPaths: mediaPaths,
+      folderId: folderId,
+    ));
+    await loadRecipes(silent: true);
   }
 
   Future<void> updateRecipe(Recipe recipe) async {
     try {
       await DatabaseHelper.instance.update(recipe);
-      await loadRecipes();
+      await loadRecipes(silent: true);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -186,7 +99,7 @@ class RecipeProvider with ChangeNotifier {
 
   Future<void> deleteRecipe(int id) async {
     await DatabaseHelper.instance.delete(id);
-    await loadRecipes();
+    await loadRecipes(silent: true);
   }
 
   Future<void> moveRecipeToFolder(int recipeId, int? folderId) async {
@@ -194,7 +107,7 @@ class RecipeProvider with ChangeNotifier {
       final recipe = _recipes.firstWhere((r) => r.id == recipeId);
       final updatedRecipe = recipe.copyWith(folderId: folderId);
       await DatabaseHelper.instance.update(updatedRecipe);
-      await loadRecipes();
+      await loadRecipes(silent: true);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -240,7 +153,7 @@ class RecipeProvider with ChangeNotifier {
     try {
       await DatabaseHelper.instance.deleteFolder(id);
       await loadFolders();
-      await loadRecipes();
+      await loadRecipes(silent: true);
     } catch (e) {
       _error = e.toString();
       notifyListeners();

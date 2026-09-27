@@ -40,7 +40,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -145,6 +145,12 @@ ALTER TABLE places ADD COLUMN mediaPaths TEXT DEFAULT '[]'
 ALTER TABLE recipes ADD COLUMN variations TEXT DEFAULT '[]'
 ''');
     }
+
+    if (oldVersion < 9) {
+      await db.execute('''
+ALTER TABLE recipes ADD COLUMN completedSteps TEXT DEFAULT '[]'
+''');
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -180,6 +186,7 @@ CREATE TABLE recipes (
   thumbnailData BLOB,
   mediaPaths $textNullableType DEFAULT '[]',
   variations $textNullableType DEFAULT '[]',
+  completedSteps $textNullableType DEFAULT '[]',
   FOREIGN KEY (folderId) REFERENCES folders (id) ON DELETE SET NULL
   )
 ''');
@@ -228,6 +235,7 @@ CREATE TABLE places (
       dateCreated: recipe.dateCreated,
       folderId: recipe.folderId,
       reelId: recipe.reelId,
+      completedSteps: recipe.completedSteps,
     );
   }
 

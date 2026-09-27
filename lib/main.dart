@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'providers/recipe_provider.dart';
 import 'providers/place_provider.dart';
-import 'ui/main_nav_screen.dart';
+import 'ui/library_screen.dart';
 import 'services/background_processing_service.dart';
 import 'ui/processing_overlay.dart';
 
@@ -106,7 +106,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
           themeMode: ThemeMode.system,
-          home: const MainNavScreen(),
+          home: const LibraryScreen(),
         ),
       );
     });

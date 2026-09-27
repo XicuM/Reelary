@@ -16,6 +16,7 @@ class Recipe {
   final Uint8List? thumbnailData;
   final List<String> mediaPaths;
   final List<RecipeVariation> variations;
+  final List<int> completedSteps;
 
   Recipe({
     this.id,
@@ -32,6 +33,7 @@ class Recipe {
     this.thumbnailData,
     this.mediaPaths = const [],
     this.variations = const [],
+    this.completedSteps = const [],
   });
 
   Map<String, dynamic> toMap() {
@@ -50,6 +52,7 @@ class Recipe {
       'thumbnailData': thumbnailData,
       'mediaPaths': jsonEncode(mediaPaths),
       'variations': jsonEncode(variations.map((x) => x.toMap()).toList()),
+      'completedSteps': jsonEncode(completedSteps),
     };
   }
 
@@ -79,6 +82,9 @@ class Recipe {
           ? List<RecipeVariation>.from(
               jsonDecode(map['variations']).map((x) => RecipeVariation.fromMap(x)))
           : [],
+      completedSteps: map['completedSteps'] != null
+          ? List<int>.from(jsonDecode(map['completedSteps']))
+          : [],
     );
   }
 
@@ -92,11 +98,12 @@ class Recipe {
     List<String>? steps,
     String? authorComment,
     DateTime? dateCreated,
-    int? folderId,
     String? reelId,
     Uint8List? thumbnailData,
     List<String>? mediaPaths,
     List<RecipeVariation>? variations,
+    List<int>? completedSteps,
+    Object? folderId = _keep,
   }) {
     return Recipe(
       id: id ?? this.id,
@@ -108,14 +115,17 @@ class Recipe {
       steps: steps ?? this.steps,
       authorComment: authorComment ?? this.authorComment,
       dateCreated: dateCreated ?? this.dateCreated,
-      folderId: folderId ?? this.folderId,
+      folderId: identical(folderId, _keep) ? this.folderId : folderId as int?,
       reelId: reelId ?? this.reelId,
       thumbnailData: thumbnailData ?? this.thumbnailData,
       mediaPaths: mediaPaths ?? this.mediaPaths,
       variations: variations ?? this.variations,
+      completedSteps: completedSteps ?? this.completedSteps,
     );
   }
 }
+
+const Object _keep = Object();
 
 class Ingredient {
   final String name;

@@ -48,6 +48,10 @@ void main() {
       final readUpdated = await dbHelper.readRecipe(createdRecipe.id!);
       expect(readUpdated!.title, 'Updated Pasta');
 
+      await dbHelper.update(readUpdated.copyWith(completedSteps: [0]));
+      final cooked = await dbHelper.readRecipe(createdRecipe.id!);
+      expect(cooked!.completedSteps, [0]);
+
       // Delete
       await dbHelper.delete(createdRecipe.id!);
       final deleted = await dbHelper.readRecipe(createdRecipe.id!);

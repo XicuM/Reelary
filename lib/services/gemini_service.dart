@@ -139,6 +139,50 @@ class GeminiService {
     }
   }
 
+  /// True when the post is a place to visit. A cooking video is a recipe even
+  /// if it was filmed in a restaurant.
+  Future<bool> isPlaceContent(List<String> mediaPaths) async {
+    if (mediaPaths.isEmpty) return false;
+    return _retryWithBackoff(() async {
+      final model = await _getModel();
+      final parts = <Part>[
+        TextPart('''
+Decide whether this post should be saved as a recipe or as a place.
+Reply with JSON only: {"type":"recipe"} or {"type":"place"}.
+
+Choose recipe when the post shows cooking, ingredients, or how to make a dish.
+Choose place when the post is about somewhere to go: a restaurant, shop, landmark, or trip.
+A recipe filmed inside a restaurant is a recipe.
+'''),
+      ];
+      for (final path in mediaPaths.take(2)) {
+        final file = File(path);
+        if (!await file.exists()) continue;
+        parts.add(DataPart(_getMimeType(path), await file.readAsBytes()));
+      }
+
+      final response = await model.generateContent([Content.multi(parts)]);
+      final raw = response.text?.trim().toLowerCase() ?? '';
+      var text = raw;
+      if (text.startsWith('```json')) {
+        text = text.substring(7);
+      } else if (text.startsWith('```')) {
+        text = text.substring(3);
+      }
+      if (text.endsWith('```')) {
+        text = text.substring(0, text.length - 3);
+      }
+      text = text.trim();
+      try {
+        final decoded = jsonDecode(text);
+        if (decoded is Map && decoded['type'] is String) {
+          return (decoded['type'] as String).toLowerCase() == 'place';
+        }
+      } catch (_) {}
+      return text.contains('place') && !text.contains('recipe');
+    });
+  }
+
   Future<Recipe> generateRecipe({
     required List<String> mediaPaths, // Changed from videoPath to mediaPaths
     required String authorComment,

@@ -16,16 +16,12 @@ class PlaceProvider with ChangeNotifier {
   List<Place> _places = [];
   List<RecipeFolder> _folders = [];
   List<PlaceTag> _tags = [];
-  int? _selectedFolderId;
-  int? _selectedTagId;
   bool _isLoading = false;
   String? _error;
 
   List<Place> get places => _places;
   List<RecipeFolder> get folders => _folders;
   List<PlaceTag> get tags => _tags;
-  int? get selectedFolderId => _selectedFolderId;
-  int? get selectedTagId => _selectedTagId;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -40,25 +36,9 @@ class PlaceProvider with ChangeNotifier {
     loadTags();
   }
 
-  void selectFolder(int? folderId) {
-    _selectedFolderId = folderId;
-    _selectedTagId = null;
-    loadPlaces();
-  }
-
-  void selectTag(int? tagId) {
-    _selectedTagId = tagId;
-    _selectedFolderId = null;
-    loadPlaces();
-  }
-
   Future<void> loadFolders() async {
     try {
-      final allFolders = await DatabaseHelper.instance.readAllFolders();
-      _folders = allFolders.where((folder) =>
-        folder.entryType == FolderEntryType.place ||
-        folder.entryType == FolderEntryType.both
-      ).toList();
+      _folders = await DatabaseHelper.instance.readAllFolders();
       notifyListeners();
     } catch (e) {
       _error = e.toString();
@@ -96,17 +76,14 @@ class PlaceProvider with ChangeNotifier {
     }
   }
 
-  Future<void> loadPlaces() async {
-    _isLoading = true;
-    notifyListeners();
+  Future<void> loadPlaces({bool silent = false}) async {
+    if (!silent) {
+      _isLoading = true;
+      notifyListeners();
+    }
     try {
-      if (_selectedTagId != null) {
-        // Load places by tag
-        _places = await DatabaseHelper.instance.readPlacesByTag(_selectedTagId!);
-      } else {
-        // Load places from specific folder or no folder (if null)
-        _places = await DatabaseHelper.instance.readPlacesByFolder(_selectedFolderId);
-      }
+      _places = await DatabaseHelper.instance.readAllPlaces();
+      _error = null;
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -115,140 +92,68 @@ class PlaceProvider with ChangeNotifier {
     }
   }
 
-  Future<void> addPlaceFromUrl(String url) async {
-    // Non-blocking loading state - we don't set _isLoading globally to avoid blocking UI
-    // The BackgroundProcessingService will handle notifications
-    _error = null;
-    notifyListeners();
-
+  /// Saves a place from media that has already been downloaded.
+  Future<void> savePrepared({
+    required String url,
+    required String reelId,
+    required List<String> mediaPaths,
+    required String mainMediaPath,
+    required bool isVideo,
+    required String? thumbnailPath,
+    required Uint8List? thumbnailData,
+    int? folderId,
+  }) async {
     final bgService = BackgroundProcessingService();
-    await bgService.startService();
-    bgService.updateNotification(title: 'Processing Place', content: 'Initializing...', showProgress: true, progress: 0);
+    bgService.updateNotification(
+      title: 'Saving post',
+      content: 'Analyzing with AI...',
+      showProgress: true,
+      progress: 70,
+    );
 
-    try {
-      // Validate URL and extract post ID (Instagram or TikTok)
-      final reelId = MediaService.extractPostId(url);
-      if (reelId == null) {
-        throw Exception(MediaService.invalidUrlMessage);
-      }
+    final result = await _geminiService.extractPlaces(
+      videoPath: mainMediaPath,
+      videoUrl: url,
+    );
 
-      // Check if place already exists
-      final exists = await DatabaseHelper.instance.placeExistsByReelId(reelId);
-      if (exists) {
-        throw Exception('This place has already been added!');
-      }
+    Place place = result['place'] as Place;
+    final suggestedTag = result['suggestedTag'] as String;
 
-      // Check network connectivity first
-      bgService.updateNotification(title: 'Processing Place', content: 'Checking connection...', showProgress: true, progress: 10);
-      final hasNetwork = await _mediaService.isNetworkAvailable();
-      if (!hasNetwork) {
-        throw Exception('No internet connection');
-      }
-
-      // 1. Download media (video or images)
-      bgService.updateNotification(title: 'Processing Place', content: 'Downloading media...', showProgress: true, progress: 30);
-      final mediaPaths = await _mediaService.downloadPost(url);
-      
-      if (mediaPaths.isEmpty) {
-        throw Exception('No media found in post');
-      }
-
-      final mainMediaPath = mediaPaths.first;
-      final isVideo = mainMediaPath.toLowerCase().endsWith('.mp4');
-
-      // 2. Generate thumbnail from video or use image
-      bgService.updateNotification(title: 'Processing Place', content: 'Generating thumbnail...', showProgress: true, progress: 50);
-      
-      String? thumbnailPath;
-      if (isVideo) {
-        thumbnailPath = await _videoService.generateThumbnail(mainMediaPath);
+    bgService.updateNotification(
+      title: 'Saving post',
+      content: 'Geocoding locations...',
+      showProgress: true,
+      progress: 85,
+    );
+    final geocodedLocations = <Location>[];
+    for (final location in place.locations) {
+      if (location.latitude == null || location.longitude == null) {
+        final geocoded = await _geocodingService.getLocationFromAddress(
+          location.address ?? location.name,
+        );
+        geocodedLocations.add(geocoded ?? location);
       } else {
-        thumbnailPath = mainMediaPath;
+        geocodedLocations.add(location);
       }
-
-      // 3. Use Gemini to extract place information
-      bgService.updateNotification(title: 'Processing Place', content: 'Analyzing with AI...', showProgress: true, progress: 70);
-      final result = await _geminiService.extractPlaces(
-        videoPath: mainMediaPath,
-        videoUrl: url,
-      );
-      
-      Place place = result['place'] as Place;
-      final suggestedTag = result['suggestedTag'] as String;
-
-      // 4. Geocode locations if needed
-      bgService.updateNotification(title: 'Processing Place', content: 'Geocoding locations...', showProgress: true, progress: 85);
-      final geocodedLocations = <Location>[];
-      for (final location in place.locations) {
-        if (location.latitude == null || location.longitude == null) {
-          final geocoded = await _geocodingService.getLocationFromAddress(location.address ?? location.name);
-          if (geocoded != null) {
-            geocodedLocations.add(geocoded);
-          } else {
-            geocodedLocations.add(location);
-          }
-        } else {
-          geocodedLocations.add(location);
-        }
-      }
-      place = place.copyWith(locations: geocodedLocations);
-
-
-      // 5. Find matching tag ID
-      final matchingTag = _tags.firstWhere(
-        (tag) => tag.name == suggestedTag,
-        orElse: () => _tags.first, // Default to first tag if not found
-      );
-
-      // 6. Add metadata (reel ID, paths, tag) and save to database
-      // Get thumbnail bytes
-      Uint8List? thumbnailData;
-      if (thumbnailPath != null) {
-         if (isVideo) {
-            thumbnailData = await _videoService.getThumbnailData(thumbnailPath);
-         } else {
-             final file = File(thumbnailPath);
-             if (await file.exists()) {
-               thumbnailData = await file.readAsBytes();
-             }
-         }
-      }
-
-      final placeWithMetadata = place.copyWith(
-        reelId: reelId,
-        screenshotPath: thumbnailPath,
-        videoPath: isVideo ? mainMediaPath : null,
-        dateCreated: DateTime.now(),
-        tagIds: matchingTag.id != null ? [matchingTag.id!] : [],
-        thumbnailData: thumbnailData,
-        mediaPaths: mediaPaths,
-      );
-
-      bgService.updateNotification(title: 'Processing Place', content: 'Saving...', showProgress: true, progress: 95);
-      await DatabaseHelper.instance.createPlace(placeWithMetadata);
-
-      // 7. Reload places
-      await loadPlaces();
-
-      _error = null;
-      bgService.updateNotification(title: 'Place Added', content: 'Successfully processed!', showProgress: false);
-      // Wait a moment for the user to see "Success" then stop
-      await Future.delayed(const Duration(seconds: 3));
-      await bgService.stopService();
-
-    } catch (e) {
-      _error = e.toString();
-      bgService.updateNotification(title: 'Error Processing Place', content: e.toString(), showProgress: false);
-      if (kDebugMode) {
-        debugPrint('Error adding place: $e');
-      }
-      // Wait for user to see error?
-      await Future.delayed(const Duration(seconds: 5));
-      await bgService.stopService();
-    } finally {
-      // _isLoading = false; // Intentionally removed to prevent UI blocking
-      notifyListeners();
     }
+    place = place.copyWith(locations: geocodedLocations);
+
+    final matchingTag = _tags.cast<PlaceTag?>().firstWhere(
+          (tag) => tag!.name == suggestedTag,
+          orElse: () => _tags.isEmpty ? null : _tags.first,
+        );
+
+    await DatabaseHelper.instance.createPlace(place.copyWith(
+      reelId: reelId,
+      screenshotPath: thumbnailPath,
+      videoPath: isVideo ? mainMediaPath : null,
+      dateCreated: DateTime.now(),
+      tagIds: matchingTag?.id != null ? [matchingTag!.id!] : [],
+      thumbnailData: thumbnailData,
+      mediaPaths: mediaPaths,
+      folderId: folderId,
+    ));
+    await loadPlaces(silent: true);
   }
 
 
@@ -256,8 +161,7 @@ class PlaceProvider with ChangeNotifier {
   Future<void> updatePlace(Place place) async {
     try {
       await DatabaseHelper.instance.updatePlace(place);
-      await loadPlaces();
-      _error = null;
+      await loadPlaces(silent: true);
     } catch (e) {
       _error = e.toString();
     }
@@ -267,8 +171,7 @@ class PlaceProvider with ChangeNotifier {
   Future<void> deletePlace(int id) async {
     try {
       await DatabaseHelper.instance.deletePlace(id);
-      await loadPlaces();
-      _error = null;
+      await loadPlaces(silent: true);
     } catch (e) {
       _error = e.toString();
     }
@@ -280,8 +183,7 @@ class PlaceProvider with ChangeNotifier {
       final place = _places.firstWhere((r) => r.id == placeId);
       final updatedPlace = place.copyWith(folderId: folderId);
       await DatabaseHelper.instance.updatePlace(updatedPlace);
-      await loadPlaces();
-      _error = null;
+      await loadPlaces(silent: true);
     } catch (e) {
       _error = e.toString();
     }
@@ -295,7 +197,7 @@ class PlaceProvider with ChangeNotifier {
         final updatedTagIds = [...place.tagIds, tagId];
         final updatedPlace = place.copyWith(tagIds: updatedTagIds);
         await DatabaseHelper.instance.updatePlace(updatedPlace);
-        await loadPlaces();
+        await loadPlaces(silent: true);
       }
       _error = null;
     } catch (e) {
@@ -310,8 +212,7 @@ class PlaceProvider with ChangeNotifier {
       final updatedTagIds = place.tagIds.where((id) => id != tagId).toList();
       final updatedPlace = place.copyWith(tagIds: updatedTagIds);
       await DatabaseHelper.instance.updatePlace(updatedPlace);
-      await loadPlaces();
-      _error = null;
+      await loadPlaces(silent: true);
     } catch (e) {
       _error = e.toString();
     }
@@ -345,7 +246,7 @@ class PlaceProvider with ChangeNotifier {
     try {
       await DatabaseHelper.instance.deleteTag(id);
       await loadTags();
-      await loadPlaces(); // Reload places since tag associations changed
+      await loadPlaces(silent: true); // Reload places since tag associations changed
       _error = null;
     } catch (e) {
       _error = e.toString();
@@ -380,8 +281,7 @@ class PlaceProvider with ChangeNotifier {
     try {
       await DatabaseHelper.instance.deleteFolder(id);
       await loadFolders();
-      await loadPlaces();
-      _error = null;
+      await loadPlaces(silent: true);
     } catch (e) {
       _error = e.toString();
     }
@@ -405,7 +305,7 @@ class PlaceProvider with ChangeNotifier {
           thumbnailData: thumbnailData
         );
         await DatabaseHelper.instance.updatePlace(updatedPlace);
-        await loadPlaces();
+        await loadPlaces(silent: true);
         _error = null;
       } else {
         throw Exception('Video file not found. Cannot regenerate thumbnail.');
@@ -442,8 +342,7 @@ class PlaceProvider with ChangeNotifier {
       );
       
       await DatabaseHelper.instance.updatePlace(updatedPlace);
-      await loadPlaces();
-      _error = null;
+      await loadPlaces(silent: true);
     } catch (e) {
       _error = e.toString();
     }
